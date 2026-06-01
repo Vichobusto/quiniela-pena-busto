@@ -54,29 +54,34 @@ def verificar_y_actualizar_base_datos():
     )
     """)
     
-    # 🚨 INYECCIÓN INDESTRUCTIBLE DE PEÑISTAS REALES
-    # Vaciamos e insertamos de nuevo para asegurar que salgan en la web normal
+    # 🚨 INYECCIÓN FIJA Y SEGURA DE TUS PEÑISTAS REALES
     cursor.execute("DELETE FROM usuarios")
-    peñistas_reales = [("Fabián",), ("Víctor",)] # Puedes cambiar o añadir aquí los nombres exactos de tu peña separados por comas
+    peñistas_reales = [("Fabián",), ("Víctor",)] 
     cursor.executemany("INSERT INTO usuarios (nombre) VALUES (?)", peñistas_reales)
     
-    # Si la tabla partidos está vacía al iniciar, creamos 15 huecos temporales para que no se quede en blanco
+    # 🛠️ HUECOS DE SEGURIDAD: Si la tabla está vacía, creamos 15 partidos plantilla
     cursor.execute("SELECT COUNT(*) FROM partidos")
     if cursor.fetchone()[0] == 0:
         for i in range(1, 16):
             if i == 15:
-                cursor.execute("INSERT INTO partidos (num_partido, local, visitante, division, pronostico, pleno_local, pleno_visitante) VALUES (15, 'Local 15', 'Visitante 15', '1ª', '-', '-', '-')")
+                cursor.execute("""
+                    INSERT INTO partidos (num_partido, local, visitante, division, pronostico, pleno_local, pleno_visitante) 
+                    VALUES (15, 'Local 15', 'Visitante 15', 'Especial', '-', '-', '-')
+                """)
             else:
-                cursor.execute("INSERT INTO partidos (num_partido, local, visitante, division, pronostico) VALUES (?, 'Equipo L', 'Equipo V', '1ª', '-')", (i,))
+                cursor.execute("""
+                    INSERT INTO partidos (num_partido, local, visitante, division, pronostico) 
+                    VALUES (?, 'Equipo Local', 'Equipo Visitante', 'Especial', '-')
+                """, (i,))
     
     conexion.commit()
     conexion.close()
 
-# Ejecutamos la revisión profunda de la base de datos al arrancar
+# Ejecutamos la configuración al arrancar el servidor
 verificar_y_actualizar_base_datos()
 
 
-# 🏠 RUTA PÚBLICA: PORTADA DE LA PEÑA (FILTRO BLINDADO CONTRA LAS "X")
+# 🏠 RUTA PÚBLICA: PORTADA DE LA PEÑA
 @app.route("/")
 def inicio():
     conexion = conectar_bd()
@@ -110,17 +115,14 @@ def inicio():
             "pleno_local_real": p[9],
             "pleno_visitante_real": p[10]
         }
-        if partido["pronostico"].strip().upper() == "X":
-            partido["pronostico"] = "X"
-        if partido["resultado_real"].strip().upper() == "X":
-            partido["resultado_real"] = "X"
-            
+        if p[5] and p[5].strip().upper() == "X": partido["pronostico"] = "X"
+        if p[6] and p[6].strip().upper() == "X": partido["resultado_real"] = "X"
         partidos_limpios.append(partido)
         
     return render_template("index.html", partidos=partidos_limpios, usuarios=usuarios, jornada=jornada, temporada=temporada)
 
 
-# 🔐 RUTA DE ADMINISTRACIÓN: EL DESPACHO SECRETO
+# 🔐 RUTA DE ADMINISTRACIÓN
 @app.route("/admin")
 def admin_panel():
     conexion = conectar_bd()
@@ -149,8 +151,7 @@ def guardar_pronostico():
         cursor.execute("UPDATE partidos SET pleno_local = ?, pleno_visitante = ? WHERE num_partido = 15", (request.form.get("goles_local"), request.form.get("goles_visitante")))
     else:
         sig = request.form.get("signo")
-        if sig and sig.strip().upper() == "X":
-            sig = "X"
+        if sig and sig.strip().upper() == "X": sig = "X"
             
         cursor.execute("SELECT pronostico FROM partidos WHERE num_partido = ?", (num_partido,))
         act = cursor.fetchone()[0]
@@ -176,8 +177,7 @@ def marcar_resultado():
         cursor.execute("UPDATE partidos SET pleno_local_real = ?, pleno_visitante_real = ? WHERE num_partido = 15", (gl, gv))
     else:
         sig_real = request.form.get("signo_real")
-        if sig_real and sig_real.strip().upper() == "X":
-            sig_real = "X"
+        if sig_real and sig_real.strip().upper() == "X": sig_real = "X"
         cursor.execute("UPDATE partidos SET resultado_real = ? WHERE num_partido = ?", (sig_real, num_partido))
         
     conexion.commit()
@@ -205,10 +205,9 @@ def guardar_partidos():
     return redirect("/admin")
 
 
-# 🤖 EL NUEVO MOTOR DEL ROBOT SCRAPER: ADAPTADO A FORMATO SEGURO JSON
+# 🤖 EL ROBOT POR API INTERNA DE LOTERÍAS DEL ESTADO
 def clonar_quiniela_oficial():
     url = "https://www.loteriasyapuestas.es/servicios/feeder/BoletosFormularioFeeder?gameId=LAQU"
-    # Cabeceras premium simulando un navegador real en español
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Accept-Language': 'es-ES,es;q=0.9'
@@ -236,7 +235,6 @@ def clonar_quiniela_oficial():
         for p in lista_partidos:
             texto_partido = p.get('texto', '')
             
-            # Limpieza y separación robusta de los nombres de los equipos
             if " - " in texto_partido:
                 local, visitante = texto_partido.split(" - ", 1)
             elif "-" in texto_partido:
@@ -269,7 +267,7 @@ def clonar_quiniela_oficial():
         return False, f"Fallo: {str(e)}"
 
 
-# ⚡ LA RUTA EXACTA DEL BOTÓN ENTRAR (EMPAREJADA CON ADMIN.HTML)
+# ⚡ LA RUTA DEL BOTÓN DE CLONACIÓN
 @app.route("/admin/clonar_oficial", methods=["POST"])
 def admin_clonar_oficial():
     exito, mensaje = clonar_quiniela_oficial()
@@ -277,13 +275,13 @@ def admin_clonar_oficial():
     return redirect("/admin")
 
 
-# 🔒 RUTA PARA ARCHIVAR LA JORNADA Y CALCULAR PUNTOS (ESCRUTINIO)
+# 🔒 ESCRUTINIO VACÍO DE SEGURIDAD
 @app.route("/admin/cerrar_jornada", methods=["POST"])
 def cerrar_jornada():
     return redirect("/admin")
 
 
-# 🚨 RUTA PARA REINICIAR LA CLASIFICACIÓN GENERAL A CERO
+# 🚨 REINICIO MAESTRO
 @app.route("/admin/reiniciar_temporada", methods=["POST"])
 def reiniciar_temporada():
     conexion = conectar_bd()
