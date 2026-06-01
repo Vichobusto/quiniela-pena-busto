@@ -390,14 +390,25 @@ def guardar_pronostico():
     num_partido = request.form.get("partido_num")
     conexion = conectar_bd()
     cursor = conexion.cursor()
+    
     if num_partido == "15":
         cursor.execute("UPDATE partidos SET pleno_local = ?, pleno_visitante = ? WHERE num_partido = 15", (request.form.get("goles_local"), request.form.get("goles_visitante")))
     else:
         sig = request.form.get("signo")
+        
+        # 🛠️ TRUCO DEL TUTOR: Aseguramos que si viene una 'X' o 'x', se guarde limpia y en mayúscula
+        if sig and sig.strip().upper() == "X":
+            sig = "X"
+            
         cursor.execute("SELECT pronostico FROM partidos WHERE num_partido = ?", (num_partido,))
         act = cursor.fetchone()[0]
+        
+        # Si estaba vacío ('-'), guardamos el nuevo signo; si ya había algo, creamos el doble (ej: 1X)
         nuevo = sig if act == "-" else "".join(sorted(act + sig)) if sig not in act and len(act)<2 else act
+        
+        # Guardamos el resultado limpio en la base de datos
         cursor.execute("UPDATE partidos SET pronostico = ? WHERE num_partido = ?", (nuevo, num_partido))
+        
     conexion.commit()
     conexion.close()
     return redirect(url_for("inicio"))
