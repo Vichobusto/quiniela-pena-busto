@@ -54,7 +54,7 @@ def verificar_y_actualizar_base_datos():
     )
     """)
     
-    # 🚨 LA PLANTILLA OFICIAL E INALTERABLE DE TUS 28 PEÑISTAS
+    # 🚨 LA PLANTILLA OFICIAL DE TUS 28 PEÑISTAS REALES (MEMORIZADOS)
     cursor.execute("DELETE FROM usuarios")
     peñistas_reales = [
         ("Fabián",), ("Víctor",), ("Vicente",), ("Jose",), ("Orly",), 
@@ -66,19 +66,19 @@ def verificar_y_actualizar_base_datos():
     ]
     cursor.executemany("INSERT INTO usuarios (nombre) VALUES (?)", peñistas_reales)
     
-    # 🛠️ Recreamos los 15 partidos plantilla iniciales
+    # 🛠️ Recreamos los 15 partidos plantilla iniciales para que la web no nazca vacía
     cursor.execute("DELETE FROM partidos")
     for i in range(1, 16):
         if i == 15:
             cursor.execute("""
                 INSERT INTO partidos (num_partido, local, visitante, division, pronostico, pleno_local, pleno_visitante, doble_por) 
-                VALUES (15, 'España', 'Alemania', 'PLENO', '-', '-', '-', '')
+                VALUES (15, 'Equipo Local 15', 'Equipo Visitante 15', 'PLENO', '-', '-', '-', '')
             """)
         else:
             div_label = "Primera" if i <= 8 else "Segunda"
             cursor.execute("""
                 INSERT INTO partidos (num_partido, local, visitante, division, pronostico, doble_por) 
-                VALUES (?, 'Equipo L', 'Equipo V', ?, '-', '')
+                VALUES (?, 'Equipo Local', 'Equipo Visitante', ?, '-', '')
             """, (i, div_label))
     
     conexion.commit()
@@ -130,6 +130,7 @@ def inicio():
             "pleno_visitante_real": p[10]
         }
         if p[5] and p[5].strip().upper() == "X": partido["pronostico"] = "X"
+        if p[6] and p[6].strip().upper() == "X": partido["resultado_real"] = "X"
         partidos_limpios.append(partido)
     
     cursor.execute("SELECT nombre, aciertos, errores FROM usuarios ORDER BY aciertos DESC, nombre ASC")
@@ -144,12 +145,9 @@ def inicio():
     
     conexion.close()
     
-    # ⚡ REPARACIÓN DE LOS DOBLES: Ahora el sistema selecciona a los 5 encargados de esta semana
-    # (Por ejemplo, los 5 primeros de la lista. Puedes cambiar el número para elegir a los que te apetezca)
     los_del_doble = todos_usuarios[0:5] if len(todos_usuarios) >= 5 else todos_usuarios
     conjunto_dobles = los_del_doble
     
-    # Convocatorias dinámicas (20 convocados en la lista verde, 8 descansan en la grada roja)
     convocados = [{"nombre": name, "partidos": 10} for name in todos_usuarios[:20]]
     descansan = [{"nombre": name, "partidos": 8} for name in todos_usuarios[20:]]
     
@@ -157,7 +155,7 @@ def inicio():
         "index.html", 
         partidos=partidos_limpios, 
         peñistas=peñistas_lista,          
-        los_del_doble=los_del_doble,      # ¡Aquí viajan tus 5 usuarios oficiales para los dobles!
+        los_del_doble=los_del_doble,      
         conjunto_dobles=conjunto_dobles,  
         convocados=convocados,            
         descansan=descansan,              
@@ -203,48 +201,64 @@ def guardar_pronostico():
     return redirect(url_for("inicio"))
 
 
-# 🤖 EL ROBOT POR API INTERNA DE LOTERÍAS DEL ESTADO
+# 🤖 EL ROBOT MEJORADO Y BLINDADO CONTRA CAMBIOS DE TEXTO
 def clonar_quiniela_oficial():
     url = "https://www.loteriasyapuestas.es/servicios/feeder/BoletosFormularioFeeder?gameId=LAQU"
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept-Language': 'es-ES,es;q=0.9'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
     }
     try:
         respuesta = requests.get(url, headers=headers, timeout=12)
         if respuesta.status_code != 200: return False, f"Error HTTP {respuesta.status_code}"
         datos = respuesta.json()
-        if not datos or len(datos) == 0 or 'filas' not in datos[0]: return False, "JSON vacío."
+        if not datos or len(datos) == 0 or 'filas' not in datos[0]: return False, "JSON sin partidos."
         
         jornada_api = datos[0].get('jornada', '66')
         lista_partidos = datos[0]['filas']
         
         conexion = conectar_bd()
         cursor = conexion.cursor()
+        
+        # Guardamos el número oficial de jornada que dicta el Estado
         cursor.execute("UPDATE configuracion SET valor = ? WHERE clave = 'jornada'", (jornada_api,))
+        
+        # Limpiamos los 15 partidos de la base de datos para meter los nuevos auténticos
         cursor.execute("DELETE FROM partidos")
         
         contador = 1
         for p in lista_partidos:
             texto_partido = p.get('texto', '')
-            if " - " in texto_partido: local, visitante = texto_partido.split(" - ", 1)
-            elif "-" in texto_partido: local, visitante = texto_partido.split("-", 1)
-            else: local, visitante = texto_partido, "Incógnita"
             
+            # Algoritmo flexible para separar el equipo local del visitante pase lo que pase
+            if " - " in texto_partido:
+                local, visitante = texto_partido.split(" - ", 1)
+            elif "-" in texto_partido:
+                local, visitante = texto_partido.split("-", 1)
+            else:
+                local, visitante = texto_partido, "Pendiente"
+            
+            # Determinamos la etiqueta visual según el número de la casilla
             div_label = "Primera" if contador <= 8 else "Segunda" if contador <= 14 else "PLENO"
             
             if contador <= 14:
-                cursor.execute("INSERT INTO partidos (num_partido, local, visitante, division, pronostico) VALUES (?, ?, ?, ?, '-')", (contador, local.strip(), visitante.strip(), div_label))
+                cursor.execute("""
+                    INSERT INTO partidos (num_partido, local, visitante, division, pronostico) 
+                    VALUES (?, ?, ?, ?, '-')
+                """, (contador, local.strip(), visitante.strip(), div_label))
             elif contador == 15:
-                cursor.execute("INSERT INTO partidos (num_partido, local, visitante, division, pronostico, pleno_local, pleno_visitante) VALUES (15, ?, ?, ?, '-', '-', '-')", (local.strip(), visitante.strip(), div_label))
+                cursor.execute("""
+                    INSERT INTO partidos (num_partido, local, visitante, division, pronostico, pleno_local, pleno_visitante) 
+                    VALUES (15, ?, ?, ?, '-', '-', '-')
+                """, (local.strip(), visitante.strip(), div_label))
+                
             contador += 1
-            if contador > 15: break
+            if contador > 15: break  # Nos aseguramos de parar estrictamente en el partido 15
                 
         conexion.commit()
         conexion.close()
-        return True, f"¡Jornada {jornada_api} clonada!"
+        return True, f"¡Jornada {jornada_api} importada con éxito total!"
     except Exception as e:
-        return False, f"Fallo: {str(e)}"
+        return False, f"Error en el procesado: {str(e)}"
 
 
 @app.route("/admin/clonar_oficial", methods=["POST"])
