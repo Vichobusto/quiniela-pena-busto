@@ -5,7 +5,7 @@ from flask import Flask, render_template, request, redirect, url_for
 
 app = Flask(__name__)
 
-# 🗄️ FUNCIÓN DE CONEXIÓN A LA BASE DE DATOS (Abrir el archivador)
+# 🗄️ FUNCIÓN DE CONEXIÓN A LA BASE DE DATOS
 def conectar_bd():
     conexion = sqlite3.connect("quiniela_pena.db")
     return conexion
@@ -15,7 +15,7 @@ def verificar_y_actualizar_base_datos():
     conexion = conectar_bd()
     cursor = conexion.cursor()
     
-    # 1. Tabla de configuración (Registra la jornada y la temporada actual)
+    # 1. Tabla de configuración
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS configuracion (
         clave TEXT PRIMARY KEY,
@@ -25,7 +25,7 @@ def verificar_y_actualizar_base_datos():
     cursor.execute("INSERT OR IGNORE INTO configuracion (clave, valor) VALUES ('jornada', 66)")
     cursor.execute("INSERT OR IGNORE INTO configuracion (clave, valor) VALUES ('temporada', 2026)")
     
-    # 2. Tabla de partidos (Almacena los 15 emparejamientos del boleto)
+    # 2. Tabla de partidos
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS partidos (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -43,7 +43,7 @@ def verificar_y_actualizar_base_datos():
     )
     """)
     
-    # 3. Tabla de usuarios (La lista oficial de los peñistas)
+    # 3. Tabla de usuarios
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS usuarios (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -54,7 +54,7 @@ def verificar_y_actualizar_base_datos():
     )
     """)
     
-    # 🚨 INYECCIÓN INDESTRUCTIBLE: TUS 28 PEÑISTAS REALES REGISTRADOS CON ÉXITO
+    # 🚨 LA PLANTILLA OFICIAL E INALTERABLE DE TUS 28 PEÑISTAS
     cursor.execute("DELETE FROM usuarios")
     peñistas_reales = [
         ("Fabián",), ("Víctor",), ("Vicente",), ("Jose",), ("Orly",), 
@@ -66,7 +66,7 @@ def verificar_y_actualizar_base_datos():
     ]
     cursor.executemany("INSERT INTO usuarios (nombre) VALUES (?)", peñistas_reales)
     
-    # 🛠️ LIMPIEZA MAESTRA: Vaciamos y recreamos los 15 partidos plantilla para evitar atascos en el HTML
+    # 🛠️ Recreamos los 15 partidos plantilla iniciales
     cursor.execute("DELETE FROM partidos")
     for i in range(1, 16):
         if i == 15:
@@ -84,11 +84,10 @@ def verificar_y_actualizar_base_datos():
     conexion.commit()
     conexion.close()
 
-# Encendemos la base de datos limpia al arrancar el servidor web
 verificar_y_actualizar_base_datos()
 
 
-# 🏠 RUTA PÚBLICA: PORTADA DE LA PEÑA (Mapeada para tu index.html)
+# 🏠 RUTA PÚBLICA: PORTADA DE LA PEÑA
 @app.route("/")
 def inicio():
     conexion = conectar_bd()
@@ -110,7 +109,6 @@ def inicio():
     
     partidos_limpios = []
     for p in partidos_db:
-        # Repartimos de forma automática y equitativa un responsable real de tu lista para cada partido
         idx_resp = (p[0] - 1) % len(todos_usuarios) if todos_usuarios else 0
         responsable = todos_usuarios[idx_resp] if todos_usuarios else "Peñista"
         
@@ -134,7 +132,6 @@ def inicio():
         if p[5] and p[5].strip().upper() == "X": partido["pronostico"] = "X"
         partidos_limpios.append(partido)
     
-    # Construimos la clasificación (Ranking) ordenada por aciertos
     cursor.execute("SELECT nombre, aciertos, errores FROM usuarios ORDER BY aciertos DESC, nombre ASC")
     usuarios_db = cursor.fetchall()
     peñistas_lista = []
@@ -147,22 +144,23 @@ def inicio():
     
     conexion.close()
     
-    # Mandamos los nombres de los dobles controlados
-    los_del_doble = [todos_usuarios[0], todos_usuarios[1]] if len(todos_usuarios) >= 2 else ["Fabián", "Víctor"]
+    # ⚡ REPARACIÓN DE LOS DOBLES: Ahora el sistema selecciona a los 5 encargados de esta semana
+    # (Por ejemplo, los 5 primeros de la lista. Puedes cambiar el número para elegir a los que te apetezca)
+    los_del_doble = todos_usuarios[0:5] if len(todos_usuarios) >= 5 else todos_usuarios
     conjunto_dobles = los_del_doble
     
-    # Gestión de convocatorias dinámicas (20 juegan esta jornada, 8 descansan en la grada)
+    # Convocatorias dinámicas (20 convocados en la lista verde, 8 descansan en la grada roja)
     convocados = [{"nombre": name, "partidos": 10} for name in todos_usuarios[:20]]
     descansan = [{"nombre": name, "partidos": 8} for name in todos_usuarios[20:]]
     
     return render_template(
         "index.html", 
         partidos=partidos_limpios, 
-        peñistas=peñistas_lista,          # Tu tabla de clasificación con los 28 cracks reales
-        los_del_doble=los_del_doble,      
+        peñistas=peñistas_lista,          
+        los_del_doble=los_del_doble,      # ¡Aquí viajan tus 5 usuarios oficiales para los dobles!
         conjunto_dobles=conjunto_dobles,  
-        convocados=convocados,            # Cuadro verde de convocados
-        descansan=descansan,              # Cuadro rojo de la grada
+        convocados=convocados,            
+        descansan=descansan,              
         jornada_viendo=jornada_viendo, 
         jornadas_disponibles=[64, 65, 66],
         temporada=temporada,
@@ -170,7 +168,7 @@ def inicio():
     )
 
 
-# 🔐 RUTA DE ADMINISTRACIÓN (El despacho secreto)
+# 🔐 RUTA DE ADMINISTRACIÓN
 @app.route("/admin")
 def admin_panel():
     conexion = conectar_bd()
@@ -205,7 +203,7 @@ def guardar_pronostico():
     return redirect(url_for("inicio"))
 
 
-# 🤖 EL ROBOT SCRAPER: SINCRONIZACIÓN AUTOMÁTICA CON LOTERÍAS Y APUESTAS
+# 🤖 EL ROBOT POR API INTERNA DE LOTERÍAS DEL ESTADO
 def clonar_quiniela_oficial():
     url = "https://www.loteriasyapuestas.es/servicios/feeder/BoletosFormularioFeeder?gameId=LAQU"
     headers = {
