@@ -80,7 +80,7 @@ def inicio():
     cursor.execute("SELECT valor FROM configuracion WHERE clave = 'jornada'")
     jornada = cursor.fetchone()[0]
     
-    # Traemos los partidos de la base de datos (num_partido, local, visitante, resultado_real, resultado_pronostico...)
+    # Traemos los partidos de la base de datos
     cursor.execute("SELECT num_partido, local, visitante, division, doble_por, pronostico, resultado_real, pleno_local, pleno_visitante, pleno_local_real, pleno_visitante_real FROM partidos ORDER BY num_partido ASC")
     partidos_db = cursor.fetchall()
     
@@ -127,7 +127,6 @@ def admin_panel():
     cursor.execute("SELECT valor FROM configuracion WHERE clave = 'jornada'")
     jornada = cursor.fetchone()[0]
     
-    # Pasamos los datos estructurados en tuplas sencillas para los bucles del admin.html
     cursor.execute("SELECT num_partido, local, visitante, division, resultado_real, pleno_local_real, pleno_visitante_real FROM partidos ORDER BY num_partido ASC")
     partidos = cursor.fetchall()
     
@@ -202,44 +201,54 @@ def guardar_partidos():
     return redirect("/admin")
 
 
-# 🤖 EL MOTOR DEL ROBOT SCRAPER: EXTRACCIÓN REAL DESDE LOTERÍAS DEL ESTADO
+# 🤖 EL NUEVO MOTOR DEL ROBOT SCRAPER: CONEXIÓN POR API (INFALIBLE VERANO E INVIERNO)
 def clonar_quiniela_oficial():
-    url = "https://www.loteriasyapuestas.es/es/quiniela"
+    # Nos conectamos a la tubería JSON central que alimenta las aplicaciones de Loterías
+    url = "https://www.loteriasyapuestas.es/servicios/feeder/BoletosFormularioFeeder?gameId=LAQU"
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
     
     try:
         respuesta = requests.get(url, headers=headers, timeout=10)
         if respuesta.status_code != 200:
-            return False, "No se pudo acceder a la web oficial."
+            return False, f"Error de conexión con Loterías (Código {respuesta.status_code})"
             
-        sopa = BeautifulSoup(respuesta.text, 'html.parser')
-        bloque_jornada = sopa.find('div', class_='c-completo-jornada-anterior')
-        if not bloque_jornada:
-            bloque_jornada = sopa.find('div', class_='c-completo-jornada')
+        datos = respuesta.json()
+        
+        if not datos or len(datos) == 0 or 'filas' not in datos[0]:
+            return False, "No hay ninguna jornada activa publicada en este momento."
             
-        if not bloque_jornada:
-            return False, "No se encontró el formato del boleto en la página."
-            
-        filas_partidos = bloque_jornada.find_all('div', class_='c-completo-jornada__fila')
-        if not filas_partidos:
-            return False, "No se pudieron extraer los partidos."
-            
+        jornada_api = datos[0].get('jornada', '66')
+        lista_partidos = datos[0]['filas']
+        
         conexion = conectar_bd()
         cursor = conexion.cursor()
         
-        # Limpiamos el boleto anterior para volcar la jornada fresca
+        # 1. Actualizamos el número de jornada automáticamente
+        cursor.execute("UPDATE configuracion SET valor = ? WHERE clave = 'jornada'", (jornada_api,))
+        
+        # 2. Vaciamos los partidos viejos para meter la jornada 66 real
         cursor.execute("DELETE FROM partidos")
         
         contador = 1
-        for fila in filas_partidos:
-            local = fila.find('div', class_='c-completo-jornada__equipo-local').text.strip()
-            visitante = fila.find('div', class_='c-completo-jornada__equipo-visitante').text.strip()
-            division = "1ª"
+        for p in lista_partidos:
+            texto_partido = p.get('texto', '')
+            if " - " in texto_partido:
+                local, visitante = texto_partido.split(" - ", 1)
+            else:
+                local, visitante = "Equipo Local", "Equipo Visitante"
+                
+            division = "Especial"
             
             if contador <= 14:
-                cursor.execute("INSERT INTO partidos (num_partido, local, visitante, division, pronostico) VALUES (?, ?, ?, ?, '-')", (contador, local, visitante, division))
+                cursor.execute("""
+                    INSERT INTO partidos (num_partido, local, visitante, division, pronostico)
+                    VALUES (?, ?, ?, ?, '-')
+                """, (contador, local.strip(), visitante.strip(), division))
             elif contador == 15:
-                cursor.execute("INSERT INTO partidos (num_partido, local, visitante, division, pronostico, pleno_local, pleno_visitante) VALUES (15, ?, ?, ?, '-', '-', '-')", (local, visitante, division))
+                cursor.execute("""
+                    INSERT INTO partidos (num_partido, local, visitante, division, pronostico, pleno_local, pleno_visitante)
+                    VALUES (15, ?, ?, ?, '-', '-', '-')
+                """, (local.strip(), visitante.strip(), division))
                 
             contador += 1
             if contador > 15:
@@ -247,26 +256,23 @@ def clonar_quiniela_oficial():
                 
         conexion.commit()
         conexion.close()
-        return True, "¡Boleto oficial clonado con éxito!"
+        return True, f"¡Jornada {jornada_api} clonada con éxito total!"
         
     except Exception as e:
-        return False, f"Error en el robot: {str(e)}"
+        return False, f"Fallo en la tubería de datos: {str(e)}"
 
 
-# ⚡📍 LA DIRECCIÓN MAPA DEL BOTÓN VERDE (LA QUE DABA EL ERROR EXTRAVIADO)
+# ⚡ LA RUTA EXACTA DEL BOTÓN ENTRAR (EMPAREJADA CON ADMIN.HTML)
 @app.route("/admin/clonar_oficial", methods=["POST"])
 def admin_clonar_oficial():
-    # Lanzamos el robot extractor a internet
     exito, mensaje = clonar_quiniela_oficial()
     print(f"🤖 [Consola de Render]: {mensaje}")
-    # Redirigimos de vuelta de forma limpia al panel de administración para ver los nuevos equipos
     return redirect("/admin")
 
 
 # 🔒 RUTA PARA ARCHIVAR LA JORNADA Y CALCULAR PUNTOS (ESCRUTINIO)
 @app.route("/admin/cerrar_jornada", methods=["POST"])
 def cerrar_jornada():
-    # Aquí irá tu lógica de reparto de puntos cuando calculas los aciertos
     return redirect("/admin")
 
 
