@@ -1,7 +1,6 @@
 import os
 import sqlite3
 import requests
-from bs4 import BeautifulSoup
 from flask import Flask, render_template, request, redirect, url_for
 
 app = Flask(__name__)
@@ -23,7 +22,7 @@ def verificar_y_actualizar_base_datos():
         valor INTEGER
     )
     """)
-    cursor.execute("INSERT OR IGNORE INTO configuracion (clave, valor) VALUES ('jornada', 1)")
+    cursor.execute("INSERT OR IGNORE INTO configuracion (clave, valor) VALUES ('jornada', 66)")
     cursor.execute("INSERT OR IGNORE INTO configuracion (clave, valor) VALUES ('temporada', 2026)")
     
     # 2. Tabla de partidos (Con pronóstico y resultados reales)
@@ -55,16 +54,25 @@ def verificar_y_actualizar_base_datos():
     )
     """)
     
-    # Cimientos: Registramos a los peñistas oficiales si está vacía
-    cursor.execute("SELECT COUNT(*) FROM usuarios")
+    # 🚨 INYECCIÓN INDESTRUCTIBLE DE PEÑISTAS REALES
+    # Vaciamos e insertamos de nuevo para asegurar que salgan en la web normal
+    cursor.execute("DELETE FROM usuarios")
+    peñistas_reales = [("Fabián",), ("Víctor",)] # Puedes cambiar o añadir aquí los nombres exactos de tu peña separados por comas
+    cursor.executemany("INSERT INTO usuarios (nombre) VALUES (?)", peñistas_reales)
+    
+    # Si la tabla partidos está vacía al iniciar, creamos 15 huecos temporales para que no se quede en blanco
+    cursor.execute("SELECT COUNT(*) FROM partidos")
     if cursor.fetchone()[0] == 0:
-        peñistas_iniciales = [("Fabián",), ("Víctor",)]
-        cursor.executemany("INSERT INTO usuarios (nombre) VALUES (?)", peñistas_iniciales)
+        for i in range(1, 16):
+            if i == 15:
+                cursor.execute("INSERT INTO partidos (num_partido, local, visitante, division, pronostico, pleno_local, pleno_visitante) VALUES (15, 'Local 15', 'Visitante 15', '1ª', '-', '-', '-')")
+            else:
+                cursor.execute("INSERT INTO partidos (num_partido, local, visitante, division, pronostico) VALUES (?, 'Equipo L', 'Equipo V', '1ª', '-')", (i,))
     
     conexion.commit()
     conexion.close()
 
-# Ejecutamos la revisión de la base de datos al arrancar
+# Ejecutamos la revisión profunda de la base de datos al arrancar
 verificar_y_actualizar_base_datos()
 
 
@@ -74,17 +82,14 @@ def inicio():
     conexion = conectar_bd()
     cursor = conexion.cursor()
     
-    # Traemos los datos de la temporada y jornada actuales
     cursor.execute("SELECT valor FROM configuracion WHERE clave = 'temporada'")
     temporada = cursor.fetchone()[0]
     cursor.execute("SELECT valor FROM configuracion WHERE clave = 'jornada'")
     jornada = cursor.fetchone()[0]
     
-    # Traemos los partidos de la base de datos
     cursor.execute("SELECT num_partido, local, visitante, division, doble_por, pronostico, resultado_real, pleno_local, pleno_visitante, pleno_local_real, pleno_visitante_real FROM partidos ORDER BY num_partido ASC")
     partidos_db = cursor.fetchall()
     
-    # Traemos la lista de usuarios
     cursor.execute("SELECT nombre FROM usuarios ORDER BY nombre ASC")
     usuarios = [fila[0] for fila in cursor.fetchall()]
     
@@ -105,7 +110,6 @@ def inicio():
             "pleno_local_real": p[9],
             "pleno_visitante_real": p[10]
         }
-        # Aseguramos que la X no se transforme en Incógnita al pintar la pantalla
         if partido["pronostico"].strip().upper() == "X":
             partido["pronostico"] = "X"
         if partido["resultado_real"].strip().upper() == "X":
@@ -134,7 +138,7 @@ def admin_panel():
     return render_template("admin.html", partidos=partidos, jornada=jornada, temporada=temporada)
 
 
-# 💾 RUTA PARA GUARDAR LOS PRONÓSTICOS DEL BOLETO (BLINDADA CONTRA LA "X")
+# 💾 RUTA PARA GUARDAR LOS PRONÓSTICOS DEL BOLETO
 @app.route("/guardar_pronostico", methods=["POST"])
 def guardar_pronostico():
     num_partido = request.form.get("partido_num")
@@ -159,7 +163,7 @@ def guardar_pronostico():
     return redirect(url_for("inicio"))
 
 
-# 📺 RUTA PARA INTRODUCIR LOS RESULTADOS REALES DE LA TELEVISIÓN DESDE EL PANEL
+# 📺 RUTA PARA INTRODUCIR LOS RESULTADOS REALES DE LA TELEVISIÓN
 @app.route("/admin/marcar_resultado", methods=["POST"])
 def marcar_resultado():
     num_partido = request.form.get("partido_num")
@@ -201,21 +205,23 @@ def guardar_partidos():
     return redirect("/admin")
 
 
-# 🤖 EL NUEVO MOTOR DEL ROBOT SCRAPER: CONEXIÓN POR API (INFALIBLE VERANO E INVIERNO)
+# 🤖 EL NUEVO MOTOR DEL ROBOT SCRAPER: ADAPTADO A FORMATO SEGURO JSON
 def clonar_quiniela_oficial():
-    # Nos conectamos a la tubería JSON central que alimenta las aplicaciones de Loterías
     url = "https://www.loteriasyapuestas.es/servicios/feeder/BoletosFormularioFeeder?gameId=LAQU"
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+    # Cabeceras premium simulando un navegador real en español
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept-Language': 'es-ES,es;q=0.9'
+    }
     
     try:
-        respuesta = requests.get(url, headers=headers, timeout=10)
+        respuesta = requests.get(url, headers=headers, timeout=12)
         if respuesta.status_code != 200:
-            return False, f"Error de conexión con Loterías (Código {respuesta.status_code})"
+            return False, f"Error HTTP {respuesta.status_code}"
             
         datos = respuesta.json()
-        
         if not datos or len(datos) == 0 or 'filas' not in datos[0]:
-            return False, "No hay ninguna jornada activa publicada en este momento."
+            return False, "Estructura JSON de Loterías vacía."
             
         jornada_api = datos[0].get('jornada', '66')
         lista_partidos = datos[0]['filas']
@@ -223,19 +229,20 @@ def clonar_quiniela_oficial():
         conexion = conectar_bd()
         cursor = conexion.cursor()
         
-        # 1. Actualizamos el número de jornada automáticamente
         cursor.execute("UPDATE configuracion SET valor = ? WHERE clave = 'jornada'", (jornada_api,))
-        
-        # 2. Vaciamos los partidos viejos para meter la jornada 66 real
         cursor.execute("DELETE FROM partidos")
         
         contador = 1
         for p in lista_partidos:
             texto_partido = p.get('texto', '')
+            
+            # Limpieza y separación robusta de los nombres de los equipos
             if " - " in texto_partido:
                 local, visitante = texto_partido.split(" - ", 1)
+            elif "-" in texto_partido:
+                local, visitante = texto_partido.split("-", 1)
             else:
-                local, visitante = "Equipo Local", "Equipo Visitante"
+                local, visitante = texto_partido, "Incógnita"
                 
             division = "Especial"
             
@@ -259,7 +266,7 @@ def clonar_quiniela_oficial():
         return True, f"¡Jornada {jornada_api} clonada con éxito total!"
         
     except Exception as e:
-        return False, f"Fallo en la tubería de datos: {str(e)}"
+        return False, f"Fallo: {str(e)}"
 
 
 # ⚡ LA RUTA EXACTA DEL BOTÓN ENTRAR (EMPAREJADA CON ADMIN.HTML)
@@ -287,7 +294,7 @@ def reiniciar_temporada():
     return redirect("/admin")
 
 
-# 🖥️ ENLACE INTELIGENTE DE PUERTOS (ADAPTADO TANTO PARA TU CASA COMO PARA RENDER)
+# 🖥️ ENLACE INTELIGENTE DE PUERTOS
 if __name__ == "__main__":
     puerto = int(os.environ.get("PORT", 5000))
     print(f"🖥️ Motor de la Peña Busto encendido con éxito en el puerto {puerto}...")
