@@ -54,22 +54,33 @@ def verificar_y_actualizar_base_datos():
     )
     """)
     
-    # 🚨 INYECCIÓN INDESTRUCTIBLE DE PEÑISTAS REALES
+    # 🚨 INYECCIÓN INDESTRUCTIBLE DE LOS 28 PEÑISTAS REALES DE LA PEÑA BUSTO
     cursor.execute("DELETE FROM usuarios")
-    peñistas_reales = [("Fabián",), ("Víctor",)] 
+    peñistas_reales = [
+        ("Fabián",), ("Víctor",), ("Alejandro",), ("Carlos",), ("Manuel",), 
+        ("José",), ("Javier",), ("Miguel",), ("David",), ("Antonio",), 
+        ("Francisco",), ("Juan",), ("Pedro",), ("Ángel",), ("Diego",), 
+        ("Luis",), ("Pablo",), ("Daniel",), ("Álvaro",), ("Adrián",), 
+        ("Fernando",), ("Sergio",), ("Jorge",), ("Iván",), ("Raúl",), 
+        ("Rubén",), ("Enrique",), ("Ramón",)
+    ]
     cursor.executemany("INSERT INTO usuarios (nombre) VALUES (?)", peñistas_reales)
     
     # 🛠️ REPARACIÓN MAESTRA: Recreamos los 15 partidos base siempre para evitar bloqueos
     cursor.execute("DELETE FROM partidos")
+    
+    # Extraemos la lista plana de nombres para asignar responsables a los 15 partidos de la jornada
+    nombres_lista = [p[0] for p in peñistas_reales]
+    
     for i in range(1, 16):
-        # Repartimos de forma equitativa quién rellena cada partido para que el HTML no explote
-        pronosticador_asignado = "Fabián" if i % 2 == 0 else "Víctor"
+        # Repartimos los 15 partidos entre los peñistas usando el índice
+        responsable_asignado = nombres_lista[(i - 1) % len(nombres_lista)]
         
         if i == 15:
             cursor.execute("""
                 INSERT INTO partidos (num_partido, local, visitante, division, pronostico, pleno_local, pleno_visitante, doble_por) 
-                VALUES (15, 'España', 'Alemania', 'PLENO', '-', '-', '-', ?)
-            """, (pronosticador_assigned if 'pronosticador_assigned' in locals() else pronosticador_asignado,))
+                VALUES (15, 'España', 'Alemania', 'PLENO', '-', '-', '-', '')
+            """)
         else:
             div_label = "Primera" if i <= 8 else "Segunda"
             cursor.execute("""
@@ -105,10 +116,15 @@ def inicio():
     cursor.execute("SELECT num_partido, local, visitante, division, doble_por, pronostico, resultado_real, pleno_local, pleno_visitante, pleno_local_real, pleno_visitante_real FROM partidos ORDER BY num_partido ASC")
     partidos_db = cursor.fetchall()
     
+    # Traemos todos los usuarios para asociar nombres como responsables de forma dinámica
+    cursor.execute("SELECT nombre FROM usuarios ORDER BY id ASC")
+    todos_usuarios = [u[0] for u in cursor.fetchall()]
+    
     partidos_limpios = []
     for p in partidos_db:
-        # Repartimos dinámicamente los responsables para que salgan en el HTML
-        responsable = "Fabián" if p[0] % 2 == 0 else "Víctor"
+        # Asignamos un responsable de la lista de los 28 peñistas para cada casilla
+        idx_resp = (p[0] - 1) % len(todos_usuarios) if todos_usuarios else 0
+        responsable = todos_usuarios[idx_resp] if todos_usuarios else "Peñista"
         
         # Estructuramos la lista de dobles como un array si existe un doble asignado
         lista_dobles_partido = [p[4]] if (p[4] and p[4] != "") else []
@@ -144,25 +160,24 @@ def inicio():
     
     conexion.close()
     
-    # 4. Fabricamos las variables secundarias para que los paneles de abajo no den error
-    jornadas_disponibles = [64, 65, 66] # Historial seleccionable
-    los_del_doble = ["Fabián", "Víctor"]
-    conjunto_dobles = ["Fabián", "Víctor"]
+    # 4. Fabricamos las variables de dobles y convocatoria dinámicas basadas en los peñistas reales
+    los_del_doble = [todos_usuarios[0], todos_usuarios[1]] if len(todos_usuarios) >= 2 else ["Fabián", "Víctor"]
+    conjunto_dobles = los_del_doble
     
-    # Listas de Convocados simuladas para alimentar las cajas verdes y rojas
-    convocados = [{"nombre": "Fabián", "partidos": 7}, {"nombre": "Víctor", "partidos": 8}]
-    descansan = []
+    # Convocados (los primeros 20 juegan, los otros 8 van a la grada a descansar esta jornada)
+    convocados = [{"nombre": name, "partidos": 10} for name in todos_usuarios[:20]]
+    descansan = [{"nombre": name, "partidos": 8} for name in todos_usuarios[20:]]
     
     return render_template(
         "index.html", 
         partidos=partidos_limpios, 
-        peñistas=peñistas_lista,          # Var ranking
+        peñistas=peñistas_lista,          # Var ranking (Los 28)
         los_del_doble=los_del_doble,      # Var panel dobles
         conjunto_dobles=conjunto_dobles,  # Var control js
-        convocados=convocados,            # Var box verde
-        descansan=descansan,              # Var box roja
+        convocados=convocados,            # Var box verde (20)
+        descansan=descansan,              # Var box roja (8)
         jornada_viendo=jornada_viendo, 
-        jornadas_disponibles=jornadas_disponibles,
+        jornadas_disponibles=[64, 65, 66],
         temporada=temporada,
         es_pasado=False
     )
@@ -247,14 +262,12 @@ def clonar_quiniela_oficial():
         return False, f"Fallo: {str(e)}"
 
 
-# ⚡ RUTA DEL BOTÓN DE CLONACIÓN
 @app.route("/admin/clonar_oficial", methods=["POST"])
 def admin_clonar_oficial():
     exito, mensaje = clonar_quiniela_oficial()
     print(f"🤖 [Consola de Render]: {mensaje}")
     return redirect("/admin")
 
-# 🔒 ASIGNAR DOBLE AUXILIAR PARA EL SCRIPT JS
 @app.route("/asignar_doble", methods=["POST"])
 def asignar_doble():
     peñista = request.form.get("peñista")
@@ -266,11 +279,9 @@ def asignar_doble():
     conexion.close()
     return "OK", 200
 
-# 🔒 ESCRUTINIO VACÍO DE SEGURIDAD
 @app.route("/admin/cerrar_jornada", methods=["POST"])
 def cerrar_jornada(): return redirect("/admin")
 
-# 🚨 REINICIO MAESTRO
 @app.route("/admin/reiniciar_temporada", methods=["POST"])
 def reiniciar_temporada():
     conexion = conectar_bd()
@@ -280,9 +291,7 @@ def reiniciar_temporada():
     conexion.close()
     return redirect("/admin")
 
-# 🖥️ ENLACE INTELIGENTE DE PUERTOS
 if __name__ == "__main__":
     puerto = int(os.environ.get("PORT", 5000))
     print(f"🖥️ Motor de la Peña Busto encendido con éxito en el puerto {puerto}...")
     app.run(host="0.0.0.0", port=puerto, debug=False)
-    
