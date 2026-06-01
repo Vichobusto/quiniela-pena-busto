@@ -430,4 +430,14 @@ def asignar_doble():
 
 if __name__ == "__main__":
     robot_traer_nueva_quiniela_internet() # Forzado de partidos automático al arrancar
-    app.run(debug=True)
+# 🚀 ESTE BLOQUE VA AL FINAL DEL TODO DE TU ARCHIVO APP.PY
+if __name__ == "__main__":
+    import os
+    # Le preguntamos a Render qué puerto nos ha asignado en internet.
+    # Si estamos en nuestra casa (local), usará el puerto 5000 por defecto.
+    puerto = int(os.environ.get("PORT", 5000))
+    
+    print(f"🖥️ Arrancando el motor de la Peña Busto en el puerto {puerto}...")
+    
+    # Arrancamos Flask escuchando a todo el mundo (0.0.0.0) y en el puerto correcto
+    app.run(host="0.0.0.0", port=puerto, debug=False)
