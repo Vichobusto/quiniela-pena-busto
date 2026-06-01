@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel Administrador - Peña Busto</title>
+    <style>
+        :root {
+            --admin-color: #b71c1c;
+            --admin-dark: #7f0000;
+            --bg-card: rgba(255, 255, 255, 0.98);
+            --text: #2c3e50;
+        }
+        body { font-family: 'Segoe UI', sans-serif; background-color: #f4f6f9; color: var(--text); margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; }
+        .contenedor { max-width: 950px; width: 100%; background: white; padding: 30px; border-radius: 16px; box-shadow: 0 8px 30px rgba(0,0,0,0.1); margin-bottom: 25px; box-sizing: border-box; }
+        h1 { color: var(--admin-color); text-align: center; text-transform: uppercase; margin-top: 0; font-weight: 900; font-size: 2.2rem; }
+        .sub { text-align: center; color: #666; margin-bottom: 30px; font-weight: bold; font-size: 1.1rem; }
+        .bloque { border: 1px solid #e2e8f0; padding: 25px; border-radius: 12px; margin-bottom: 25px; background-color: #f8fafc; }
+        .bloque h2 { margin-top: 0; color: #2e7d32; font-size: 1.3rem; border-bottom: 3px solid #2e7d32; padding-bottom: 6px; text-transform: uppercase; }
+        .fila-partido { display: flex; align-items: center; gap: 15px; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid #edf2f7; flex-wrap: wrap; }
+        .num { font-weight: 900; width: 30px; color: #2e7d32; font-size: 1.2rem; }
+        input[type="text"], input[type="number"], select { padding: 8px 12px; border: 2px solid #cbd5e1; border-radius: 8px; font-size: 1rem; outline: none; }
+        input[type="text"] { flex: 1; min-width: 140px; font-weight: 600; }
+        input[type="text"]:focus, select:focus { border-color: var(--admin-color); }
+        .btn-signo { background-color: #e2e8f0; border: none; padding: 8px 16px; font-weight: 800; cursor: pointer; border-radius: 8px; font-size: 1rem; transition: all 0.2s; }
+        .btn-signo:hover { background-color: #cbd5e1; transform: scale(1.05); }
+        .marcado { background: linear-gradient(135deg, #2e7d32, #1b5e20) !important; color: white !important; box-shadow: 0 4px 10px rgba(46,125,50,0.3); }
+        .marcado-p15 { background: linear-gradient(135deg, #b71c1c, #7f0000) !important; color: white !important; }
+        .btn-accion { background: linear-gradient(135deg, #2e7d32, #1b5e20); color: white; border: none; padding: 14px; font-size: 1.1rem; font-weight: bold; border-radius: 8px; cursor: pointer; width: 100%; margin-top: 10px; transition: background 0.2s; }
+        .btn-accion:hover { background: #1b5e20; }
+        .btn-cerrar { background: linear-gradient(135deg, #ff9800, #e65100); }
+        .btn-peligro { background: linear-gradient(135deg, #b71c1c, #7f0000); }
+        .volver { display: block; text-align: center; margin-top: 20px; color: #0d47a1; text-decoration: none; font-weight: bold; font-size: 1.1rem; }
+        .caja-jornada-manual { background-color: #e3f2fd; padding: 15px; border-radius: 10px; border: 2px solid #90caf9; margin-bottom: 20px; display: flex; align-items: center; gap: 15px; }
+    </style>
+</head>
+<body>
+
+    <div class="contenedor">
+        <h1>⚙️ DESPACHO DE ADMINISTRACIÓN MASTER</h1>
+        <p class="sub">Temporada Activa {{ temporada }} — JORNADA DE TRABAJO REAL: Nº {{ jornada }}</p>
+        
+        <div class="bloque">
+            <h2>📊 1. IN INTRODUCIR RESULTADOS OFICIALES DE LA TELEVISIÓN (1X2)</h2>
+            {% for part in partidos %}
+            <div class="fila-partido">
+                <span class="num">{{ part[0] }}</span>
+                <span style="flex: 1; font-weight: 700; font-size: 1.05rem;">{{ part[1] }} vs {{ part[2] }}</span>
+                
+                {% if part[0] == 15 %}
+                    <form action="/admin/marcar_resultado" method="POST" style="display: flex; align-items: center; gap: 6px;">
+                        <input type="hidden" name="partido_num" value="15">
+                        <select name="goles_l_real">
+                            <option value="0" {% if part[5]=='0' %}selected{% endif %}>0</option>
+                            <option value="1" {% if part[5]=='1' %}selected{% endif %}>1</option>
+                            <option value="2" {% if part[5]=='2' %}selected{% endif %}>2</option>
+                            <option value="M" {% if part[5]=='M' %}selected{% endif %}>M</option>
+                        </select>
+                        <span style="font-weight:bold;">-</span>
+                        <select name="goles_v_real">
+                            <option value="0" {% if part[6]=='0' %}selected{% endif %}>0</option>
+                            <option value="1" {% if part[6]=='1' %}selected{% endif %}>1</option>
+                            <option value="2" {% if part[6]=='2' %}selected{% endif %}>2</option>
+                            <option value="M" {% if part[6]=='M' %}selected{% endif %}>M</option>
+                        </select>
+                        <button type="submit" class="btn-signo {% if part[5] != '-' %}marcado-p15{% endif %}">💾</button>
+                    </form>
+                {% else %}
+                    <form action="/admin/marcar_resultado" method="POST" style="display: flex; gap: 6px;">
+                        <input type="hidden" name="partido_num" value="{{ part[0] }}">
+                        <button type="submit" name="signo_real" value="1" class="btn-signo {% if part[4]=='1' %}marcado{% endif %}">1</button>
+                        <button type="submit" name="signo_real" value="X" class="btn-signo {% if part[4]=='X' %}marcado{% endif %}">X</button>
+                        <button type="submit" name="signo_real" value="2" class="btn-signo {% if part[4]=='2' %}marcado{% endif %}">2</button>
+                    </form>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+
+        <div class="bloque">
+            <h2>📝 2. REDEFINIR PRÓXIMA JORNADA (Manual o Entre Semana)</h2>
+            <form action="/admin/guardar_partidos" method="POST">
+                <div class="caja-jornada-manual">
+                    <strong>🔢 Nº de Jornada Oficial (Loterías del Estado):</strong>
+                    <input type="number" name="num_jornada_oficial" value="{{ jornada }}" min="1" max="150" style="width: 80px; font-weight: 900; text-align: center; color:var(--admin-color);" required>
+                    <span style="font-size: 0.85rem; color: #555;">(Modifica este número libremente si vas a saltar a una quiniela especial).</span>
+                </div>
+
+                {% for part in partidos %}
+                <div class="fila-partido">
+                    <span class="num">{{ part[0] }}</span>
+                    <input type="text" name="local_{{ part[0] }}" value="{{ part[1] }}" required>
+                    <span style="font-weight: bold; color: #999;">vs</span>
+                    <input type="text" name="visitante_{{ part[0] }}" value="{{ part[2] }}" required>
+                </div>
+                {% endfor %}
+                <button type="submit" class="btn-accion">🎰 Publicar esta combinación de Jornada</button>
+            </form>
+        </div>
+
+        <div class="bloque" style="background-color: #fff3e0; border-color: #ffb300;">
+            <h2 style="color: #e65100; border-color: #ffb300;">🔒 3. EJECUTAR ESCRUTINIO Y AVANZAR SEMANA</h2>
+            <p style="font-size: 0.9rem; margin-bottom: 15px; color: #555;">Calcula al instante el reparto de aciertos, actualiza la tabla de posiciones general de la peña, archiva el fin de semana y activa el robot de internet.</p>
+            <form action="/admin/cerrar_jornada" method="POST">
+                <button type="submit" class="btn-accion btn-cerrar">🔒 Archivar y Calcular Puntos de la Jornada</button>
+            </form>
+        </div>
+
+        <div class="bloque" style="background-color: #ffebee; border-color: #ef9a9a;">
+            <h2 style="color: #c62828; border-color: #ef9a9a;">🚨 4. REINICIO MAESTRO DE LA TEMPORADA</h2>
+            <p style="font-size: 0.9rem; margin-bottom: 15px; color: #555;">Pone a cero absoluto los marcadores de aciertos y errores de todos los usuarios de la base de datos para arrancar un nuevo año deportivo.</p>
+            <form action="/admin/reiniciar_temporada" method="POST" onsubmit="return confirm('¿Seguro que quieres reiniciar la clasificación a 0 y comenzar una temporada nueva?');">
+                <button type="submit" class="btn-accion btn-peligro">🚨 Resetear Clasificación e Iniciar Nueva Temporada</button>
+            </form>
+        </div>
+
+        <a class="volver" href="/">⬅️ Volver a la Portada Pública de la Peña</a>
+    </div>
+
+</body>
+</html>

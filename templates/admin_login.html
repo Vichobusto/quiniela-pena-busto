@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Acceso Administrador - Peña Busto</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background-color: #1b5e20;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .login-box {
+            background: white;
+            padding: 40px;
+            border-radius: 16px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+            text-align: center;
+            max-width: 360px;
+            width: 100%;
+        }
+        h2 { color: #1b5e20; margin-top: 0; font-weight: 800; }
+        input[type="password"] {
+            width: 100%;
+            padding: 12px;
+            margin: 15px 0;
+            border: 2px solid #ccc;
+            border-radius: 8px;
+            box-sizing: border-box;
+            font-size: 1rem;
+        }
+        button {
+            background: linear-gradient(135deg, #1b5e20, #0d3c12);
+            color: white;
+            border: none;
+            padding: 12px;
+            width: 100%;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .error-msg { color: #b71c1c; font-weight: bold; margin-bottom: 15px; }
+    </style>
+</head>
+<body>
+    <div class="login-box">
+        <h2>🔒 DESPACHO ADMIN</h2>
+        <p>Introduce la contraseña maestra de la Peña Busto</p>
+        
+        {% if error %}
+            <div class="error-msg">{{ error }}</div>
+        {% endif %}
+        
+        <form action="/admin/login" method="POST">
+            <input type="password" name="admin_password" placeholder="Contraseña..." required autofocus>
+            <button type="submit">Entrar al Panel</button>
+        </form>
+    </div>
+</body>
+</html>

@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Peña Busto - Quiniela Elite</title>
+    <!-- Librería profesional para generar las capturas de pantalla -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        :root {
+            --primary: #1b5e20;
+            --primary-light: #4c8c4a;
+            --secondary: #b71c1c;
+            --accent: #ffb300;
+            --bg-card: rgba(255, 255, 255, 0.95);
+            --text: #2c3e50;
+            --doble-color: #e65100;
+        }
+
+        body { 
+            font-family: 'Segoe UI', sans-serif; 
+            background-image: url("{{ url_for('static', filename='imagenes/fondo.jpg') }}"); 
+            background-repeat: no-repeat; 
+            background-attachment: fixed; 
+            background-size: cover; 
+            background-position: center; 
+            margin: 0; 
+            padding: 20px; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+        }
+
+        .header-container {
+            max-width: 1200px;
+            width: 100%;
+            display: flex;
+            align-items: center;
+            gap: 30px;
+            margin-bottom: 30px;
+            box-sizing: border-box;
+        }
+
+        .logo-area {
+            width: 35%; 
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .logo-pena { 
+            width: 440px; 
+            height: auto; 
+            object-fit: contain;
+            background: transparent;
+            border: none;
+            box-shadow: none;
+            filter: drop-shadow(0px 8px 12px rgba(0,0,0,0.4));
+        }
+
+        .navbar {
+            width: 65%; 
+            background: linear-gradient(135deg, var(--primary), #0d3c12);
+            padding: 25px 30px;
+            border-radius: 16px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+            box-sizing: border-box;
+            color: white;
+            min-height: 140px;
+            display: flex;
+            align-items: center;
+        }
+
+        .navbar-textos {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+        }
+
+        .navbar-textos h1 { 
+            margin: 0; 
+            font-size: 2.6rem; 
+            font-weight: 800; 
+            letter-spacing: 1px; 
+            text-transform: uppercase;
+        }
+        
+        .navbar-textos p { 
+            margin: 5px 0 0 0; 
+            color: #a5d6a7; 
+            font-size: 1.2rem; 
+            font-weight: 500;
+        }
+
+        .btn-whatsapp-captura {
+            background: #25d366;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            border-radius: 30px;
+            cursor: pointer;
+            margin-bottom: 25px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            box-shadow: 0 4px 15px rgba(37, 211, 102, 0.4);
+            transition: transform 0.2s;
+        }
+        .btn-whatsapp-captura:hover { transform: scale(1.03); }
+
+        @media (max-width: 900px) {
+            .header-container { flex-direction: column; gap: 20px; }
+            .logo-area { width: 100%; }
+            .logo-pena { width: 280px; }
+            .navbar { width: 100%; min-height: auto; padding: 20px; }
+            .navbar-textos h1 { font-size: 2rem; }
+        }
+
+        .grid-principal { 
+            display: grid; 
+            grid-template-columns: 7fr 3fr; 
+            gap: 30px; 
+            max-width: 1200px; 
+            width: 100%; 
+            margin-bottom: 35px; 
+        }
+
+        @media (max-width: 900px) { .grid-principal { grid-template-columns: 1fr; } }
+
+        .bloque-titulo { 
+            color: white; 
+            background: var(--primary); 
+            padding: 15px 20px; 
+            border-radius: 12px; 
+            font-size: 1.25rem; 
+            margin-bottom: 20px; 
+            font-weight: bold; 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+        }
+
+        .contenedor-partidos { display: flex; flex-direction: column; gap: 15px; padding: 10px; border-radius: 16px; }
+        
+        .partido-card {
+            background: var(--bg-card);
+            border-radius: 14px;
+            padding: 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            display: grid;
+            grid-template-columns: 50px 100px 1fr 180px;
+            align-items: center;
+            gap: 15px;
+            border-left: 6px solid var(--primary-light);
+        }
+
+        .partido-card.card-pleno { border-left-color: var(--secondary); background: #fffde7; }
+        .partido-num { font-size: 1.4rem; font-weight: 900; color: var(--primary); text-align: center; }
+        .card-pleno .partido-num { color: var(--secondary); }
+
+        .badge-div { padding: 4px 8px; border-radius: 6px; font-size: 0.75rem; font-weight: bold; color: white; text-align: center; display: inline-block; }
+        .p1 { background-color: #0d47a1; } .p2 { background-color: #e65100; } .p15 { background-color: #b71c1c; }
+
+        .equipos-info { font-size: 1.2rem; font-weight: 700; color: #1a252f; }
+        
+        .nombre-responsable { 
+            font-size: 1.15rem; 
+            color: var(--primary); 
+            font-weight: 800; 
+            margin-top: 5px; 
+            display: block;
+            letter-spacing: 0.5px;
+        }
+        .dobles-tag { font-size: 0.85rem; color: #555; font-weight: 500; }
+
+        .zona-voto { display: flex; justify-content: flex-end; gap: 8px; }
+        
+        .btn-premium {
+            background: #f8f9fa;
+            border: 2px solid #bdc3c7;
+            color: #34495e;
+            width: 45px;
+            height: 45px;
+            font-size: 1.1rem;
+            font-weight: 800;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .voto-activo {
+            background: linear-gradient(135deg, #2e7d32, #1b5e20) !important;
+            color: white !important;
+            border-color: #1b5e20 !important;
+        }
+
+        .pleno-display {
+            background: var(--primary);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-weight: bold;
+            font-size: 1.1rem;
+        }
+
+        .tabla-ranking { width: 100%; border-collapse: separate; border-spacing: 0 6px; }
+        .tabla-ranking tr { background: var(--bg-card); }
+        .tabla-ranking td, .tabla-ranking th { padding: 12px; text-align: center; }
+        .tabla-ranking th { background: var(--primary); color: white; }
+        .tabla-ranking td:first-child { border-radius: 8px 0 0 8px; font-weight: bold; }
+        .tabla-ranking td:last-child { border-radius: 0 8px 8px 0; }
+
+        .podio-1 { background: #fff9c4 !important; }
+        .podio-2 { background: #f5f5f5 !important; }
+        .podio-3 { background: #ffe0b2 !important; }
+
+        .panel-dobles { background: var(--bg-card); padding: 20px; border-radius: 14px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-top: 20px; }
+        .select-premium { padding: 10px; border-radius: 6px; border: 2px solid #ccc; font-size: 1rem; font-weight: bold; }
+        
+        .contenedor-opciones-doble {
+            display: none; 
+            margin-top: 15px;
+            background: #f1f8e9;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #c5e1a5;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .btn-doble-opcion {
+            width: 50px;
+            height: 50px;
+            font-size: 1.2rem;
+            font-weight: 900;
+            border-radius: 12px;
+            border: 2px solid #bdc3c7;
+            background: white;
+            cursor: pointer;
+        }
+        .btn-doble-opcion.difuminado {
+            opacity: 0.25;
+            cursor: not-allowed;
+            background: #e0e0e0;
+        }
+
+        .zona-convocatoria { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; max-width: 1200px; width: 100%; margin-bottom: 30px; }
+        .box-lista { background: var(--bg-card); padding: 20px; border-radius: 14px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+        .lista-badges { display: flex; flex-wrap: wrap; gap: 8px; list-style: none; padding: 0; }
+        .lista-badges li { background: #edf2f7; padding: 6px 12px; border-radius: 20px; font-size: 0.9rem; font-weight: bold; }
+        
+        .badge-juega { border-left: 4px solid #2e7d32; }
+        .badge-grada { border-left: 4px solid #c62828; }
+        
+        .badge-doblero-activo { 
+            background: #ffe0b2 !important; 
+            color: var(--doble-color) !important; 
+            border-left: 4px solid var(--doble-color) !important; 
+        }
+        
+        .lista-dobleros { display: flex; gap: 8px; list-style: none; padding: 0; margin: 10px 0 20px 0; flex-wrap: wrap; }
+        .lista-dobleros li { background: #ffe0b2; color: var(--doble-color); padding: 6px 14px; border-radius: 20px; font-weight: bold; font-size: 0.9rem; border: 1px solid #ffb74d; }
+    </style>
+</head>
+<body>
+
+    <div class="header-container">
+        <div class="logo-area">
+            <img class="logo-pena" src="{{ url_for('static', filename='imagenes/logo.png') }}" alt="Logo Peña">
+        </div>
+        <div class="navbar">
+            <div class="navbar-textos">
+                <h1>PEÑA BUSTO QUINIELA</h1>
+                <p>El templo oficial de los pronosticadores de élite</p>
+            </div>
+        </div>
+    </div>
+
+    <button class="btn-whatsapp-captura" onclick="descargarBoletoWhatsApp()">
+        📸 Descargar Solo Recorte del Boleto para WhatsApp
+    </button>
+
+    <div class="grid-principal">
+        <div class="columna-izq">
+            <div class="bloque-titulo">
+                <span>🎫 BOLETO JORNADA OFICIAL Nº {{ jornada_viendo }} {% if es_pasado %}(ARCHIVADO){% else %}(ACTIVA){% endif %}</span>
+                <form action="/" method="GET" style="margin:0;">
+                    <select name="jornada_ver" class="select-premium" onchange="this.form.submit()">
+                        {% for j in jornadas_disponibles %}
+                            <option value="{{ j }}" {% if j == jornada_viendo %}selected{% endif %}>Jornada Oficial {{ j }}</option>
+                        {% endfor %}
+                    </select>
+                </form>
+            </div>
+
+            <!-- ⚡ CORRECCIÓN 1: El identificador 'id="area-boleto-captura"' ahora encierra EXCLUSIVAMENTE las 15 casillas -->
+            <div class="contenedor-partidos" id="area-boleto-captura" style="background: var(--primary); padding: 15px;">
+                {% for part in partidos %}
+                <div class="partido-card {% if part.num == 15 %}card-pleno{% endif %}" id="card-partido-{{ part.num }}" data-pronostico="{{ part.pronostico }}" data-dobles-firmados="{{ part.dobles|join(',') }}">
+                    <div class="partido-num">{{ part.num }}</div>
+                    <div>
+                        <span class="badge-div {% if part.division == 'Primera' %}p1{% elif part.division == 'Segunda' %}p2{% else %}p15{% endif %}">
+                            {{ '1ª Div' if part.division == 'Primera' else '2ª Div' if part.division == 'Segunda' else 'PLENO' }}
+                        </span>
+                    </div>
+
+                    <div class="equipos-info">
+                        {{ part.local }} vs {{ part.visitante }}
+                        <span class="nombre-responsable">👤 {{ part.pronosticador }}</span>
+                        <span class="dobles-tag"> | 🔥 Dobles: <span class="badge-dobles-texto-{{ part.num }}" id="txt-dobles-{{ part.num }}">
+                            {% if part.dobles %}{% for d in part.dobles %}<span style="color:var(--secondary); font-weight: bold;">[{{ d }}]</span> {% endfor %}{% else %}-{% endif %}
+                        </span></span>
+                    </div>
+
+                    <div class="zona-voto">
+                        {% if es_pasado %}
+                            <span class="pleno-display">
+                                {{ part.pronostico if part.num != 15 else part.pleno_local ~ '-' ~ part.pleno_visitante }}
+                            </span>
+                        {% else %}
+                            {% if part.num == 15 %}
+                                {% if part.pleno_local != '-' %}
+                                    <span class="pleno-display" style="background-color: var(--secondary);">M: {{ part.pleno_local }} - {{ part.pleno_visitante }}</span>
+                                {% else %}
+                                    <form action="/guardar_pronostico" method="POST" style="display:flex; gap:4px;">
+                                        <input type="hidden" name="partido_num" value="15">
+                                        <select name="goles_local" class="select-premium"><option value="0">0</option><option value="1">1</option><option value="2">2</option><option value="M">M</option></select>
+                                        <select name="goles_visitante" class="select-premium"><option value="0">0</option><option value="1">1</option><option value="2">2</option><option value="M">M</option></select>
+                                        <button type="submit" class="btn-doble-submit" style="padding:4px 8px;">💾</button>
+                                    </form>
+                                {% endif %}
+                            {% else %}
+                                <div style="display:flex; gap:4px;">
+                                    <button onclick="votarServidor('{{ part.num }}', '1')" id="btn-{{ part.num }}-1" class="btn-premium {% if '1' in part.pronostico %}voto-activo{% endif %}">1</button>
+                                    <button onclick="votarServidor('{{ part.num }}', 'X')" id="btn-{{ part.num }}-X" class="btn-premium {% if 'X' in part.pronostico %}voto-activo{% endif %}">X</button>
+                                    <button onclick="votarServidor('{{ part.num }}', '2')" id="btn-{{ part.num }}-2" class="btn-premium {% if '2' in part.pronostico %}voto-activo{% endif %}">2</button>
+                                </div>
+                            {% endif %}
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            {% if not es_pasado %}
+            <div class="panel-dobles">
+                <h3 style="margin-top:0; color:var(--doble-color); font-size: 1.3rem; text-transform: uppercase;">🔥 Dobles de esta semana</h3>
+                
+                <ul class="lista-dobleros">
+                    {% for nombre in los_del_doble %}
+                        <li>⚡ {{ nombre }}</li>
+                    {% endfor %}
+                </ul>
+
+                <div style="display:flex; gap:12px; flex-wrap:wrap; border-top: 1px dashed #ccc; padding-top: 15px;">
+                    <select id="select-doblero-nombre" class="select-premium" onchange="actualizarPartidosDisponibles()" required>
+                        <option value="" disabled selected>1º Elige tu nombre...</option>
+                        {% for nombre in los_del_doble %}<option value="{{ nombre }}">{{ nombre }}</option> {% endfor %}
+                    </select>
+                    
+                    <select id="select-doblero-partido" class="select-premium" onchange="mostrarOpcionesDoble()" required>
+                        <option value="" disabled selected>2º Elige la casilla a doblar...</option>
+                        {% for part in partidos if part.num != 15 %}
+                            <!-- Cargamos los partidos. Por JavaScript controlaremos si están bloqueados -->
+                            <option value="{{ part.num }}" id="opt-partido-{{ part.num }}">Partido {{ part.num }}: {{ part.local }} vs {{ part.visitante }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div id="zona-botones-doble" class="contenedor-opciones-doble">
+                    <span style="font-weight:bold; color:var(--text);">3º Selecciona el Doble:</span>
+                    <button id="opcion-doble-1" onclick="sellarDobleDesdePanel('1')" class="btn-doble-opcion">1</button>
+                    <button id="opcion-doble-X" onclick="sellarDobleDesdePanel('X')" class="btn-doble-opcion">X</button>
+                    <button id="opcion-doble-2" onclick="sellarDobleDesdePanel('2')" class="btn-doble-opcion">2</button>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="columna-der">
+            <div class="bloque-titulo" style="background: #2c3e50;">📊 RANKING</div>
+            <table class="tabla-ranking">
+                <thead><tr><th>Pos</th><th>Peñista</th><th>⚽</th><th>🟥</th></tr></thead>
+                <tbody>
+                    {% for p in peñistas %}
+                    <tr class="{% if loop.index == 1 %}podio-1{% elif loop.index == 2 %}podio-2{% elif loop.index == 3 %}podio-3{% endif %}">
+                        <td>{% if loop.index == 1 %}🥇 1º{% elif loop.index == 2 %}🥈 2º{% elif loop.index == 3 %}🥉 3º{% else %}{{ loop.index }}º{% endif %}</td>
+                        <td><strong>{{ p.nombre }}</strong></td>
+                        <td style="color:#2e7d32; font-weight:bold;">{{ p.aciertos }}</td>
+                        <td style="color:#c62828;">{{ p.errores }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="zona-convocatoria">
+        <div class="box-lista">
+            <h3 style="color:#2e7d32; margin-top:0;">🟢 CONVOCADOS ESTA JORNADA (20)</h3>
+            <ul class="lista-badges">
+                {% for c in convocados %}
+                <li class="badge-juega {% if c.nombre in conjunto_dobles %}badge-doblero-activo{% endif %}">
+                    {{ c.nombre }} <span style="font-size:0.75rem; color:#666;">({{ c.partidos }}p)</span>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+        <div class="box-lista">
+            <h3 style="color:#c62828; margin-top:0;">🔴 EN LA GRADA (Descansan)</h3>
+            <ul class="lista-badges">
+                {% for d in descansan %}
+                <li class="badge-grada">{{ d.nombre }} <span style="font-size:0.75rem; color:#666;">({{ d.partidos }}p)</span></li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        // Guardar voto por debajo (AJAX) sin saltos
+        function votarServidor(partidoNum, signo, callback) {
+            let formData = new FormData();
+            formData.append('partido_num', partidoNum);
+            formData.append('signo', signo);
+
+            fetch('/guardar_pronostico', {
+                method: 'POST',
+                body: formData
+            }).then(response => {
+                if (response.ok) {
+                    let btn = document.getElementById(`btn-${partidoNum}-${signo}`);
+                    let card = document.getElementById(`card-partido-${partidoNum}`);
+                    let pronosticoActual = card.getAttribute('data-pronostico') || '-';
+
+                    if (pronosticoActual === '-' || pronosticoActual === '') {
+                        pronosticoActual = signo;
+                        if(btn) btn.classList.add('voto-activo');
+                    } else if (pronosticoActual.includes(signo)) {
+                        pronosticoActual = pronosticoActual.replace(signo, '');
+                        if(btn) btn.classList.remove('voto-activo');
+                        if(pronosticoActual === '') pronosticoActual = '-';
+                    } else if (pronosticoActual.length < 2) {
+                        pronosticoActual = [pronosticoActual, signo].sort().join('');
+                        if(btn) btn.classList.add('voto-activo');
+                    }
+                    card.setAttribute('data-pronostico', pronosticoActual);
+                    if(callback) callback();
+                }
+            });
+        }
+
+        // ⚡ CORRECCIÓN 2: Control de la regla del "Último en llegar"
+        function actualizarPartidosDisponibles() {
+            let nombreElegido = document.getElementById('select-doblero-nombre').value;
+            
+            for (let i = 1; i <= 14; i++) {
+                let card = document.getElementById(`card-partido-${i}`);
+                let option = document.getElementById(`opt-partido-${i}`);
+                let firmados = card.getAttribute('data-dobles-firmados') || '';
+                
+                // Si la casilla ya tiene un doble y NO es el de este peñista, se bloquea (Límite: 1 doble por partido)
+                if (firmados !== '' && !firmados.includes(nombreElegido)) {
+                    option.disabled = true;
+                    if(!option.text.includes("(AGOTADO)")) option.text += " (AGOTADO)";
+                } else {
+                    option.disabled = false;
+                    option.text = option.text.replace(" (AGOTADO)", "");
+                }
+            }
+            document.getElementById('zona-botones-doble').style.display = 'none';
+            document.getElementById('select-doblero-partido').value = "";
+        }
+
+        function mostrarOpcionesDoble() {
+            let partidoSeleccionado = document.getElementById('select-doblero-partido').value;
+            let zonaBotones = document.getElementById('zona-botones-doble');
+            if (!partidoSeleccionado) return;
+
+            let card = document.getElementById(`card-partido-${partidoSeleccionado}`);
+            let pronosticoActual = card.getAttribute('data-pronostico') || '-';
+
+            ['1', 'X', '2'].forEach(signo => {
+                let btnOpcion = document.getElementById(`opcion-doble-${signo}`);
+                btnOpcion.classList.remove('difuminado');
+                btnOpcion.disabled = false;
+                if (pronosticoActual.includes(signo) && pronosticoActual.length === 1) {
+                    btnOpcion.classList.add('difuminado');
+                    btnOpcion.disabled = true;
+                }
+            });
+            zonaBotones.style.display = 'flex';
+        }
+
+        // ⚡ CORRECCIÓN 3: Rectificar elecciones anteriores borrando el rastro viejo
+        function sellarDobleDesdePanel(signoElegido) {
+            let nombrePeñista = document.getElementById('select-doblero-nombre').value;
+            let partidoNuevoNum = document.getElementById('select-doblero-partido').value;
+
+            if (!nombrePeñista) { alert("Por favor, selecciona tu nombre."); return; }
+
+            // Buscamos si este peñista ya tenía un doble firmado en OTRO partido antes
+            let partidoViejoNum = null;
+            for (let i = 1; i <= 14; i++) {
+                let cardCheck = document.getElementById(`card-partido-${i}`);
+                let firmadosCheck = cardCheck.getAttribute('data-dobles-firmados') || '';
+                if (firmadosCheck.includes(nombrePeñista)) {
+                    partidoViejoNum = i;
+                    break;
+                }
+            }
+
+            // Si ya tenía un doble viejo y es DISTINTO al nuevo, lo borramos de la base de datos primero
+            if (partidoViejoNum && partidoViejoNum != partidoNuevoNum) {
+                let fdBorrar = new FormData();
+                fdBorrar.append('partido_num', partidoViejoNum);
+                // Enviamos una petición de limpieza al servidor para desvincular al peñista de la casilla vieja
+                fetch('/guardar_pronostico', { method: 'POST', body: fdBorrar }); 
+            }
+
+            let formData = new FormData();
+            formData.append('peñista', nombrePeñista);
+            formData.append('partido', partidoNuevoNum);
+
+            fetch('/asignar_doble', {
+                method: 'POST',
+                body: formData
+            }).then(response => {
+                if (response.ok) {
+                    // Si cambió de partido, limpiamos visualmente la fila vieja arriba
+                    if (partidoViejoNum && partidoViejoNum != partidoNuevoNum) {
+                        let cardVieja = document.getElementById(`card-partido-${partidoViejoNum}`);
+                        cardVieja.setAttribute('data-dobles-firmados', '');
+                        document.getElementById(`txt-dobles-${partidoViejoNum}`).innerHTML = '-';
+                        ['1','X','2'].forEach(s => document.getElementById(`btn-${partidoViejoNum}-${s}`).classList.remove('voto-activo'));
+                        cardVieja.setAttribute('data-pronostico', '-');
+                    }
+
+                    // Forzamos el voto del nuevo signo
+                    votarServidor(partidoNuevoNum, signoElegido, function() {
+                        let cardNueva = document.getElementById(`card-partido-${partidoNuevoNum}`);
+                        cardNueva.setAttribute('data-dobles-firmados', nombrePeñista);
+                        document.getElementById(`txt-dobles-${partidoNuevoNum}`).innerHTML = `<span style="color:var(--secondary); font-weight: bold;">[${nombrePeñista}]</span>`;
+                        
+                        document.getElementById('zona-botones-doble').style.display = 'none';
+                        document.getElementById('select-doblero-partido').value = "";
+                        alert(`¡Perfecto! El doble de ${nombrePeñista} se ha guardado en el partido ${partidoNuevoNum}.`);
+                    });
+                }
+            });
+        }
+
+        // Generar captura recortada EXCLUSIVAMENTE de los partidos
+        function descargarBoletoWhatsApp() {
+            let area = document.getElementById('area-boleto-captura');
+            let opciones = {
+                backgroundColor: '#1b5e20',
+                scale: 2, 
+                useCORS: true
+            };
+
+            html2canvas(area, opciones).then(canvas => {
+                let enlace = document.createElement('a');
+                enlace.download = 'boleto_recorte_busto.jpg';
+                enlace.href = canvas.toDataURL('image/jpeg', 0.9);
+                enlace.click();
+            });
+        }
+    </script>
+</body>
+</html>
