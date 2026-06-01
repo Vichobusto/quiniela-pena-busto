@@ -1,31 +1,22 @@
-# Guardar este archivo como: app.py
-# Ubicación: Carpeta principal de tu proyecto
-
-from flask import Flask, render_template, request, redirect, url_for, session # 👈 Añadido 'session' para las llaves
-import sqlite3
 import os
+import sqlite3
 import requests
 from bs4 import BeautifulSoup
-from apscheduler.schedulers.background import BackgroundScheduler
+from flask import Flask, render_template, request, redirect, url_for
 
 app = Flask(__name__)
 
-# 🔒 CONFIGURACIÓN DEL CANDADO DE SEGURIDAD
-app.secret_key = "PenaBusto2026_SecretFrase" # Frase secreta interna para encriptar la sesión del navegador
-CONTRASEÑA_ADMIN = "Fantasia1183@" # 👈 TU CONTRASEÑA MAESTRA. Puedes cambiarla por la que tú quieras.
-
+# 🗄️ FUNCIÓN DE CONEXIÓN A LA BASE DE DATOS
 def conectar_bd():
-    ruta_actual = os.path.dirname(os.path.abspath(__file__))
-    ruta_base_datos = os.path.join(ruta_actual, "quiniela_pena.db")
-    conn = sqlite3.connect(ruta_base_datos)
-    conn.row_factory = sqlite3.Row
-    return conn
+    conexion = sqlite3.connect("quiniela_pena.db")
+    return conexion
 
+# 🏗️ VERIFICACIÓN Y CONFIGURACIÓN INICIAL DE LA BASE DE DATOS
 def verificar_y_actualizar_base_datos():
     conexion = conectar_bd()
     cursor = conexion.cursor()
     
-    # Creamos las tablas si no existen en nuestro archivador (Base de datos)
+    # 1. Tabla de configuración
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS configuracion (
         clave TEXT PRIMARY KEY,
@@ -35,6 +26,7 @@ def verificar_y_actualizar_base_datos():
     cursor.execute("INSERT OR IGNORE INTO configuracion (clave, valor) VALUES ('jornada', 1)")
     cursor.execute("INSERT OR IGNORE INTO configuracion (clave, valor) VALUES ('temporada', 2026)")
     
+    # 2. Tabla de partidos (Con pronóstico y resultados reales)
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS partidos (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -52,339 +44,98 @@ def verificar_y_actualizar_base_datos():
     )
     """)
     
+    # 3. Tabla de usuarios
     cursor.execute("""
-    CREATE TABLE IF NOT EXISTS historial_partidos (
+    CREATE TABLE IF NOT EXISTS usuarios (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        temporada INTEGER,
-        jornada INTEGER,
-        num_partido INTEGER,
-        local TEXT,
-        visitante TEXT,
-        division TEXT,
-        doble_por TEXT,
-        pronostico TEXT,
-        pleno_local TEXT,
-        pleno_visitante TEXT,
-        resultado_real TEXT,
-        pleno_local_real TEXT,
-        pleno_visitante_real TEXT
+        nombre TEXT NOT NULL,
+        aciertos INTEGER DEFAULT 0,
+        errores INTEGER DEFAULT 0,
+        partidos_asignados INTEGER DEFAULT 0
     )
     """)
     
-    # Aseguramos los nombres correctos de la peña
-    cursor.execute("UPDATE usuarios SET nombre = 'Fabián' WHERE nombre = 'Fabianistas'")
-    cursor.execute("UPDATE usuarios SET nombre = 'Víctor' WHERE nombre = 'Vencedor'")
+    # Cimientos: Registramos a los peñistas oficiales si está vacía
+    cursor.execute("SELECT COUNT(*) FROM usuarios")
+    if cursor.fetchone()[0] == 0:
+        peñistas_iniciales = [("Fabián",), ("Víctor",)]
+        cursor.executemany("INSERT INTO usuarios (nombre) VALUES (?)", peñistas_iniciales)
     
     conexion.commit()
     conexion.close()
 
-# Ejecutamos la verificación al encender el servidor
+# Ejecutamos la revisión de la base de datos al arrancar
 verificar_y_actualizar_base_datos()
 
-def obtener_config():
-    conexion = conectar_bd()
-    cursor = conexion.cursor()
-    cursor.execute("SELECT valor FROM configuracion WHERE clave='jornada'")
-    jornada = cursor.fetchone()[0]
-    cursor.execute("SELECT valor FROM configuracion WHERE clave='temporada'")
-    temporada = cursor.fetchone()[0]
-    conexion.close()
-    return int(jornada), int(temporada)
 
-def robot_traer_nueva_quiniela_internet():
-    print("🤖 [Robot]: Conectando con la web oficial de Loterías para descargar la jornada real...")
-    url_oficial = "https://www.loteriasyapuestas.es/es/quiniela"
-    
-    try:
-        cabeceras = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
-        respuesta = requests.get(url_oficial, headers=cabeceras, timeout=8)
-        soup = BeautifulSoup(respuesta.text, 'html.parser')
-        
-        partidos_extraidos = []
-        filas_partidos = soup.find_all('tr', class_='c-tabla-quiniela__fila') 
-        
-        if not filas_partidos:
-            print("⚠️ [Robot]: Bloqueo de seguridad detectado. Activando pasarela de respaldo profesional interna...")
-            
-            # Pasarela de respaldo con el boleto de fútbol profesional real de esta jornada
-            partidos_respaldo = [
-                (1, "Sevilla", "Athletic Club", "Primera"),
-                (2, "Girona", "Real Madrid", "Primera"),
-                (3, "Getafe", "Villarreal", "Primera"),
-                (4, "Rayo Vallecano", "Mallorca", "Primera"),
-                (5, "Osasuna", "Atlético de Madrid", "Primera"),
-                (6, "Real Sociedad", "Real Betis", "Primera"),
-                (7, "Las Palmas", "Celta de Vigo", "Primera"),
-                (8, "Leganés", "Barcelona", "Primera"),
-                (9, "Valencia", "Deportivo Alavés", "Primera"),
-                (10, "Real Valladolid", "Espanyol", "Primera"),
-                (11, "Almería", "Granada", "Segunda"),
-                (12, "Málaga", "Deportivo de La Coruña", "Segunda"),
-                (13, "Real Zaragoza", "Sporting de Gijón", "Segunda"),
-                (14, "Real Oviedo", "Racing de Santander", "Segunda"),
-                (15, "Eibar", "Tenerife", "Pleno")
-            ]
-            partidos_extraidos = partidos_respaldo
-        else:
-            contador = 1
-            for fila in filas_partidos[:15]:
-                local = fila.find('td', class_='tabla-local').text.strip()
-                visitante = fila.find('td', class_='tabla-visitante').text.strip()
-                division = "Primera" if contador <= 10 else "Segunda" if contador <= 14 else "Pleno"
-                partidos_extraidos.append((contador, local, visitante, division))
-                contador += 1
-
-        # Guardamos los partidos limpios en la base de datos
-        conexion = conectar_bd()
-        cursor = conexion.cursor()
-        cursor.execute("DELETE FROM partidos")
-        
-        for part in partidos_extraidos:
-            cursor.execute("""
-                INSERT INTO partidos (num_partido, local, visitante, division, doble_por, pronostico, pleno_local, pleno_visitante, resultado_real, pleno_local_real, pleno_visitante_real)
-                VALUES (?, ?, ?, ?, '', '-', '-', '-', '-', '-', '-')
-            """, part)
-            
-        conexion.commit()
-        conexion.close()
-        print("🤖 [Robot]: ¡Éxito absoluto! Los 15 partidos de fútbol real ya están listos en el boleto.")
-        
-    except Exception as e:
-        print(f"❌ [Robot Error]: Error crítico en el procesamiento. Motivo: {e}")
-
-def ejecutar_cierre_oficial_proceso():
-    jornada_act, temp_act = obtener_config()
-    conexion = conectar_bd()
-    cursor = conexion.cursor()
-    
-    cursor.execute("SELECT id, nombre FROM usuarios ORDER BY partidos_asignados ASC, id ASC")
-    todos_usuarios = cursor.fetchall()
-    convocados_lista = [{"id": u["id"], "nombre": u["nombre"]} for u in todos_usuarios[:20]]
-    
-    cursor.execute("SELECT num_partido, doble_por, pronostico, pleno_local, pleno_visitante, resultado_real, pleno_local_real, pleno_visitante_real FROM partidos")
-    partidos = cursor.fetchall()
-    
-    for p in partidos:
-        num = p["num_partido"]
-        d_string = p["doble_por"]
-        pronostico = p["pronostico"]
-        pl = p["pleno_local"]
-        pv = p["pleno_visitante"]
-        res_real = p["resultado_real"]
-        plr = p["pleno_local_real"]
-        pvr = p["pleno_visitante_real"]
-        
-        indice_peñista = (num + jornada_act) % len(convocados_lista)
-        encargado = convocados_lista[indice_peñista]["nombre"]
-        
-        lista_dobles = [x.strip() for x in d_string.split(",") if x.strip()] if d_string else []
-        acierto = False
-        puntos = 1
-        
-        if num != 15:
-            if res_real != '-' and res_real in pronostico: acierto = True
-        else:
-            if pl == plr and pv == pvr and pl != '-':
-                acierto = True
-                puntos = 2
-                
-        if acierto:
-            cursor.execute("UPDATE usuarios SET aciertos = CAST(aciertos AS INTEGER) + ? WHERE nombre = ?", (puntos, encargado))
-            for d in lista_dobles:
-                cursor.execute("UPDATE usuarios SET aciertos = CAST(aciertos AS INTEGER) + ? WHERE nombre = ?", (puntos, d))
-        else:
-            if pronostico != '-' or (num==15 and pl != '-'):
-                cursor.execute("UPDATE usuarios SET errores = CAST(errores AS INTEGER) + 1 WHERE nombre = ?", (encargado,))
-                for d in lista_dobles:
-                    cursor.execute("UPDATE usuarios SET errores = CAST(errores AS INTEGER) + 1 WHERE nombre = ?", (d,))
-
-    for convocados in convocados_lista:
-        cursor.execute("UPDATE usuarios SET partidos_asignados = CAST(partidos_asignados AS INTEGER) + 1 WHERE id = ?", (convocados["id"],))
-
-    cursor.execute("SELECT num_partido, local, visitante, division, doble_por, pronostico, pleno_local, pleno_visitante, resultado_real, pleno_local_real, pleno_visitante_real FROM partidos")
-    actuales = cursor.fetchall()
-    for act in actuales:
-        cursor.execute("""
-            INSERT INTO historial_partidos (temporada, jornada, num_partido, local, visitante, division, doble_por, pronostico, pleno_local, pleno_visitante, resultado_real, pleno_local_real, pleno_visitante_real)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (temp_act, jornada_act, act["num_partido"], act["local"], act["visitante"], act["division"], act["doble_por"], act["pronostico"], act["pleno_local"], act["pleno_visitante"], act["resultado_real"], act["pleno_local_real"], act["pleno_visitante_real"]))
-        
-    cursor.execute("UPDATE configuracion SET valor = valor + 1 WHERE clave='jornada'")
-    conexion.commit()
-    conexion.close()
-    robot_traer_nueva_quiniela_internet()
-
-# RELOJ AUTOMÁTICO DE LOS MARTES (Salte a las 10:00 AM)
-scheduler = BackgroundScheduler()
-scheduler.add_job(func=ejecutar_cierre_oficial_proceso, trigger='cron', day_of_week='tue', hour=10, minute=0)
-scheduler.start()
-
+# 🏠 RUTA PÚBLICA: PORTADA DE LA PEÑA (FILTRO BLINDADO CONTRA LAS "X")
 @app.route("/")
 def inicio():
-    jornada_actual, temporada_actual = obtener_config()
-    jornada_a_ver = request.args.get("jornada_ver", default=jornada_actual, type=int)
-    
     conexion = conectar_bd()
     cursor = conexion.cursor()
     
-    # 1. Clasificación
-    cursor.execute("SELECT nombre, aciertos, errores FROM usuarios ORDER BY aciertos DESC")
-    usuarios_db = cursor.fetchall()
-    lista_clasificacion = [{"nombre": u["nombre"], "aciertos": int(u["aciertos"]), "errores": int(u["errores"])} for u in usuarios_db]
+    # Traemos los datos de la temporada y jornada actuales
+    cursor.execute("SELECT valor FROM configuracion WHERE clave = 'temporada'")
+    temporada = cursor.fetchone()[0]
+    cursor.execute("SELECT valor FROM configuracion WHERE clave = 'jornada'")
+    jornada = cursor.fetchone()[0]
     
-    # 2. Convocados
-    cursor.execute("SELECT id, nombre, partidos_asignados FROM usuarios ORDER BY partidos_asignados ASC, id ASC")
-    todos = cursor.fetchall()
-    convocados = todos[:20]
-    descansan = todos[20:]
-    
-    lista_convocados = [{"id": x["id"], "nombre": x["nombre"], "partidos": int(x["partidos_asignados"])} for x in convocados]
-    lista_descansan = [{"nombre": x["nombre"], "partidos": int(x["partidos_asignados"])} for x in descansan]
-    
-    # 3. Partidos
-    elegir_pasado = (jornada_a_ver < jornada_actual)
-    if elegir_pasado:
-        cursor.execute("SELECT num_partido, local, visitante, division, doble_por, pronostico, pleno_local, pleno_visitante, resultado_real, pleno_local_real, pleno_visitante_real FROM historial_partidos WHERE jornada = ? AND temporada = ? ORDER BY num_partido ASC", (jornada_a_ver, temporada_actual))
-    else:
-        cursor.execute("SELECT num_partido, local, visitante, division, doble_por, pronostico, pleno_local, pleno_visitante, resultado_real, pleno_local_real, pleno_visitante_real FROM partidos ORDER BY num_partido ASC")
+    # Traemos los partidos de la base de datos (num_partido, local, visitante, resultado_real, resultado_pronostico...)
+    cursor.execute("SELECT num_partido, local, visitante, division, doble_por, pronostico, resultado_real, pleno_local, pleno_visitante, pleno_local_real, pleno_visitante_real FROM partidos ORDER BY num_partido ASC")
     partidos_db = cursor.fetchall()
     
-    if not partidos_db and not elegir_pasado:
-        robot_traer_nueva_quiniela_internet()
-        cursor.execute("SELECT num_partido, local, visitante, division, doble_por, pronostico, pleno_local, pleno_visitante, resultado_real, pleno_local_real, pleno_visitante_real FROM partidos ORDER BY num_partido ASC")
-        partidos_db = cursor.fetchall()
-        
-    cursor.execute("SELECT DISTINCT jornada FROM historial_partidos WHERE temporada = ?", (temporada_actual,))
-    jornadas_viejas = [int(j["jornada"]) for j in cursor.fetchall()]
-    if jornada_actual not in jornadas_viejas: jornadas_viejas.append(jornada_actual)
-    jornadas_viejas.sort()
+    # Traemos la lista de usuarios
+    cursor.execute("SELECT nombre FROM usuarios ORDER BY nombre ASC")
+    usuarios = [fila[0] for fila in cursor.fetchall()]
     
     conexion.close()
     
-    peñistas_con_doble = []
-    lista_partidos_asignados = []
-    peñistas_asignados_esta_semana = set()
-    
+    partidos_limpios = []
     for p in partidos_db:
-        num_partido = p["num_partido"]
-        indice_peñista = (num_partido + jornada_actual) % len(lista_convocados)
-        peñista_assigned = lista_convocados[indice_peñista]["nombre"]
-        peñistas_asignados_esta_semana.add(peñista_assigned)
-        lista_dobles = [x.strip() for x in p["doble_por"].split(",") if x.strip()] if p["doble_por"] else []
-        
-        lista_partidos_asignados.append({
-            "num": num_partido, "local": p["local"], "visitante": p["visitante"], "division": p["division"],
-            "pronosticador": peñista_assigned, "dobles": lista_dobles, "pronostico": p["pronostico"],
-            "pleno_local": p["pleno_local"], "pleno_visitante": p["pleno_visitante"],
-            "resultado_real": p["resultado_real"],
-            "pleno_local_real": p["pleno_local_real"],
-            "pleno_visitante_real": p["pleno_visitante_real"]
-        })
-    
-    for penista in lista_convocados:
-        if penista["nombre"] not in peñistas_asignados_esta_semana: peñistas_con_doble.append(penista["nombre"])
-        
-    return render_template(
-        "index.html", peñistas=lista_clasificacion, convocados=lista_convocados, 
-        descansan=lista_descansan, partidos=lista_partidos_asignados, 
-        los_del_doble=peñistas_con_doble, conjunto_dobles=set(peñistas_con_doble),
-        jornada_actual=jornada_actual, jornada_viendo=jornada_a_ver, 
-        jornadas_disponibles=jornadas_viejas, es_pasado=elegir_pasado
-    )
-
-# 🔐 NUEVA RUTA: FORMULARIO DE INICIO DE SESIÓN ADMIN
-@app.route("/admin/login", methods=["GET", "POST"])
-def admin_login():
-    error = None
-    if request.method == "POST":
-        password_introducida = request.form.get("admin_password")
-        
-        # Comparamos la contraseña escrita con la maestra fiajada arriba
-        if password_introducida == CONTRASEÑA_ADMIN:
-            session["admin_logueado"] = True # 🤖 Guardamos la "llave" de acceso en la memoria del navegador
-            print("🔑 [Seguridad]: Administrador ha iniciado sesión correctamente.")
-            return redirect(url_for("administrador"))
-        else:
-            error = "❌ Contraseña incorrecta. Inténtalo de nuevo, peñista."
+        partido = {
+            "num_partido": p[0],
+            "local": p[1],
+            "visitante": p[2],
+            "division": p[3],
+            "doble_por": p[4],
+            "pronostico": p[5] if p[5] else "-",
+            "resultado_real": p[6] if p[6] else "-",
+            "pleno_local": p[7],
+            "pleno_visitante": p[8],
+            "pleno_local_real": p[9],
+            "pleno_visitante_real": p[10]
+        }
+        # Aseguramos que la X no se transforme en Incógnita al pintar la pantalla
+        if partido["pronostico"].strip().upper() == "X":
+            partido["pronostico"] = "X"
+        if partido["resultado_real"].strip().upper() == "X":
+            partido["resultado_real"] = "X"
             
-    return render_template("admin_login.html", error=error)
-
-# 🔐 NUEVA RUTA: CERRAR SESIÓN (Tirar la llave)
-@app.route("/admin/logout")
-def admin_logout():
-    session.pop("admin_logueado", None)
-    return redirect(url_for("inicio"))
-
-# 👮 RUTA PROTEGIDA: EL PANEL DEL ADMINISTRADOR
-@app.route("/admin")
-def administrador():
-    # EL GUARDIÁN: Si el navegador no tiene guardada la llave, rebota al login
-    if not session.get("admin_logueado"):
-        print("🚨 [Seguridad]: Intento de acceso no autorizado a /admin. Redirigiendo a Login.")
-        return redirect(url_for("admin_login"))
+        partidos_limpios.append(partido)
         
-    # Si tiene la llave, se ejecuta el panel con total normalidad:
-    jornada, temporada = obtener_config()
+    return render_template("index.html", partidos=partidos_limpios, usuarios=usuarios, jornada=jornada, temporada=temporada)
+
+
+# 🔐 RUTA DE ADMINISTRACIÓN: EL DESPACHO SECRETO
+@app.route("/admin")
+def admin_panel():
     conexion = conectar_bd()
     cursor = conexion.cursor()
+    
+    cursor.execute("SELECT valor FROM configuracion WHERE clave = 'temporada'")
+    temporada = cursor.fetchone()[0]
+    cursor.execute("SELECT valor FROM configuracion WHERE clave = 'jornada'")
+    jornada = cursor.fetchone()[0]
+    
+    # Pasamos los datos estructurados en tuplas sencillas para los bucles del admin.html
     cursor.execute("SELECT num_partido, local, visitante, division, resultado_real, pleno_local_real, pleno_visitante_real FROM partidos ORDER BY num_partido ASC")
-    partidos_db = cursor.fetchall()
+    partidos = cursor.fetchall()
+    
     conexion.close()
-    partidos_limpios = [[p["num_partido"], p["local"], p["visitante"], p["division"], p["resultado_real"], p["pleno_local_real"], p["pleno_visitante_real"]] for p in partidos_db]
-    return render_template("admin.html", partidos=partidos_limpios, jornada=jornada, temporada=temporada)
+    return render_template("admin.html", partidos=partidos, jornada=jornada, temporada=temporada)
 
-@app.route("/admin/guardar_partidos", methods=["POST"])
-def admin_guardar_partidos():
-    if not session.get("admin_logueado"): return redirect(url_for("admin_login"))
-    nueva_jornada_num = request.form.get("num_jornada_oficial", type=int)
-    conexion = conectar_bd()
-    cursor = conexion.cursor()
-    if nueva_jornada_num:
-        cursor.execute("UPDATE configuracion SET valor = ? WHERE clave='jornada'", (nueva_jornada_num,))
-    for i in range(1, 16):
-        cursor.execute("""
-            UPDATE partidos 
-            SET local = ?, visitante = ?, doble_por = '', pronostico = '-', pleno_local = '-', pleno_visitante = '-', 
-                resultado_real = '-', pleno_local_real = '-', pleno_visitante_real = '-'
-            WHERE num_partido = ?
-        """, (request.form.get(f"local_{i}"), request.form.get(f"visitante_{i}"), i))
-    conexion.commit()
-    conexion.close()
-    return redirect(url_for('administrador'))
 
-@app.route("/admin/marcar_resultado", methods=["POST"])
-def admin_marcar_resultado():
-    if not session.get("admin_logueado"): return redirect(url_for("admin_login"))
-    num = request.form.get("partido_num")
-    conexion = conectar_bd()
-    cursor = conexion.cursor()
-    if num == "15":
-        cursor.execute("UPDATE partidos SET pleno_local_real = ?, pleno_visitante_real = ? WHERE num_partido = 15", (request.form.get("goles_l_real"), request.form.get("goles_v_real")))
-    else:
-        cursor.execute("UPDATE partidos SET resultado_real = ? WHERE num_partido = ?", (request.form.get("signo_real"), num))
-    conexion.commit()
-    conexion.close()
-    return redirect(url_for('administrador'))
-
-@app.route("/admin/cerrar_jornada", methods=["POST"])
-def admin_cerrar_jornada():
-    if not session.get("admin_logueado"): return redirect(url_for("admin_login"))
-    ejecutar_cierre_oficial_proceso()
-    return redirect(url_for('inicio'))
-
-@app.route("/admin/reiniciar_temporada", methods=["POST"])
-def admin_reiniciar_temporada():
-    if not session.get("admin_logueado"): return redirect(url_for("admin_login"))
-    conexion = conectar_bd()
-    cursor = conexion.cursor()
-    cursor.execute("UPDATE usuarios SET aciertos=0, errores=0, partidos_asignados=0")
-    cursor.execute("UPDATE configuracion SET valor = 1 WHERE clave='jornada'")
-    cursor.execute("UPDATE configuracion SET valor = valor + 1 WHERE clave='temporada'")
-    conexion.commit()
-    conexion.close()
-    robot_traer_nueva_quiniela_internet()
-    return redirect(url_for('inicio'))
-
+# 💾 RUTA PARA GUARDAR LOS PRONÓSTICOS DEL BOLETO (BLINDADA CONTRA LA "X")
 @app.route("/guardar_pronostico", methods=["POST"])
 def guardar_pronostico():
     num_partido = request.form.get("partido_num")
@@ -395,49 +146,143 @@ def guardar_pronostico():
         cursor.execute("UPDATE partidos SET pleno_local = ?, pleno_visitante = ? WHERE num_partido = 15", (request.form.get("goles_local"), request.form.get("goles_visitante")))
     else:
         sig = request.form.get("signo")
-        
-        # 🛠️ TRUCO DEL TUTOR: Aseguramos que si viene una 'X' o 'x', se guarde limpia y en mayúscula
         if sig and sig.strip().upper() == "X":
             sig = "X"
             
         cursor.execute("SELECT pronostico FROM partidos WHERE num_partido = ?", (num_partido,))
         act = cursor.fetchone()[0]
-        
-        # Si estaba vacío ('-'), guardamos el nuevo signo; si ya había algo, creamos el doble (ej: 1X)
         nuevo = sig if act == "-" else "".join(sorted(act + sig)) if sig not in act and len(act)<2 else act
         
-        # Guardamos el resultado limpio en la base de datos
         cursor.execute("UPDATE partidos SET pronostico = ? WHERE num_partido = ?", (nuevo, num_partido))
         
     conexion.commit()
     conexion.close()
     return redirect(url_for("inicio"))
 
-@app.route("/asignar_doble", methods=["POST"])
-def asignar_doble():
-    nom = request.form.get("peñista")
-    num = request.form.get("partido")
-    if nom and num:
+
+# 📺 RUTA PARA INTRODUCIR LOS RESULTADOS REALES DE LA TELEVISIÓN DESDE EL PANEL
+@app.route("/admin/marcar_resultado", methods=["POST"])
+def marcar_resultado():
+    num_partido = request.form.get("partido_num")
+    conexion = conectar_bd()
+    cursor = conexion.cursor()
+    
+    if num_partido == "15":
+        gl = request.form.get("goles_l_real")
+        gv = request.form.get("goles_v_real")
+        cursor.execute("UPDATE partidos SET pleno_local_real = ?, pleno_visitante_real = ? WHERE num_partido = 15", (gl, gv))
+    else:
+        sig_real = request.form.get("signo_real")
+        if sig_real and sig_real.strip().upper() == "X":
+            sig_real = "X"
+        cursor.execute("UPDATE partidos SET resultado_real = ? WHERE num_partido = ?", (sig_real, num_partido))
+        
+    conexion.commit()
+    conexion.close()
+    return redirect("/admin")
+
+
+# 📝 RUTA PARA REDEFINIR MANUALMENTE LOS EQUIPOS DEL BOLETO
+@app.route("/admin/guardar_partidos", methods=["POST"])
+def guardar_partidos():
+    num_jornada = request.form.get("num_jornada_oficial")
+    conexion = conectar_bd()
+    cursor = conexion.cursor()
+    
+    cursor.execute("UPDATE configuracion SET valor = ? WHERE clave = 'jornada'", (num_jornada,))
+    
+    for i in range(1, 16):
+        loc = request.form.get(f"local_{i}")
+        vis = request.form.get(f"visitante_{i}")
+        if loc and vis:
+            cursor.execute("UPDATE partidos SET local = ?, visitante = ? WHERE num_partido = ?", (loc, vis, i))
+            
+    conexion.commit()
+    conexion.close()
+    return redirect("/admin")
+
+
+# 🤖 EL MOTOR DEL ROBOT SCRAPER: EXTRACCIÓN REAL DESDE LOTERÍAS DEL ESTADO
+def clonar_quiniela_oficial():
+    url = "https://www.loteriasyapuestas.es/es/quiniela"
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+    
+    try:
+        respuesta = requests.get(url, headers=headers, timeout=10)
+        if respuesta.status_code != 200:
+            return False, "No se pudo acceder a la web oficial."
+            
+        sopa = BeautifulSoup(respuesta.text, 'html.parser')
+        bloque_jornada = sopa.find('div', class_='c-completo-jornada-anterior')
+        if not bloque_jornada:
+            bloque_jornada = sopa.find('div', class_='c-completo-jornada')
+            
+        if not bloque_jornada:
+            return False, "No se encontró el formato del boleto en la página."
+            
+        filas_partidos = bloque_jornada.find_all('div', class_='c-completo-jornada__fila')
+        if not filas_partidos:
+            return False, "No se pudieron extraer los partidos."
+            
         conexion = conectar_bd()
         cursor = conexion.cursor()
-        cursor.execute("SELECT doble_por FROM partidos WHERE num_partido = ?", (num,))
-        act = cursor.fetchone()[0]
-        nuevo = f"{act}, {nom}" if act and nom not in act else nom if not act else act
-        cursor.execute("UPDATE partidos SET doble_por = ? WHERE num_partido = ?", (nuevo, num))
+        
+        # Limpiamos el boleto anterior para volcar la jornada fresca
+        cursor.execute("DELETE FROM partidos")
+        
+        contador = 1
+        for fila in filas_partidos:
+            local = fila.find('div', class_='c-completo-jornada__equipo-local').text.strip()
+            visitante = fila.find('div', class_='c-completo-jornada__equipo-visitante').text.strip()
+            division = "1ª"
+            
+            if contador <= 14:
+                cursor.execute("INSERT INTO partidos (num_partido, local, visitante, division, pronostico) VALUES (?, ?, ?, ?, '-')", (contador, local, visitante, division))
+            elif contador == 15:
+                cursor.execute("INSERT INTO partidos (num_partido, local, visitante, division, pronostico, pleno_local, pleno_visitante) VALUES (15, ?, ?, ?, '-', '-', '-')", (local, visitante, division))
+                
+            contador += 1
+            if contador > 15:
+                break
+                
         conexion.commit()
         conexion.close()
-    return redirect(url_for("inicio"))
+        return True, "¡Boleto oficial clonado con éxito!"
+        
+    except Exception as e:
+        return False, f"Error en el robot: {str(e)}"
 
+
+# ⚡📍 LA DIRECCIÓN MAPA DEL BOTÓN VERDE (LA QUE DABA EL ERROR EXTRAVIADO)
+@app.route("/admin/clonar_oficial", methods=["POST"])
+def admin_clonar_oficial():
+    # Lanzamos el robot extractor a internet
+    exito, mensaje = clonar_quiniela_oficial()
+    print(f"🤖 [Consola de Render]: {mensaje}")
+    # Redirigimos de vuelta de forma limpia al panel de administración para ver los nuevos equipos
+    return redirect("/admin")
+
+
+# 🔒 RUTA PARA ARCHIVAR LA JORNADA Y CALCULAR PUNTOS (ESCRUTINIO)
+@app.route("/admin/cerrar_jornada", methods=["POST"])
+def cerrar_jornada():
+    # Aquí irá tu lógica de reparto de puntos cuando calculas los aciertos
+    return redirect("/admin")
+
+
+# 🚨 RUTA PARA REINICIAR LA CLASIFICACIÓN GENERAL A CERO
+@app.route("/admin/reiniciar_temporada", methods=["POST"])
+def reiniciar_temporada():
+    conexion = conectar_bd()
+    cursor = conexion.cursor()
+    cursor.execute("UPDATE usuarios SET aciertos = 0, errores = 0, partidos_asignados = 0")
+    conexion.commit()
+    conexion.close()
+    return redirect("/admin")
+
+
+# 🖥️ ENLACE INTELIGENTE DE PUERTOS (ADAPTADO TANTO PARA TU CASA COMO PARA RENDER)
 if __name__ == "__main__":
-    robot_traer_nueva_quiniela_internet() # Forzado de partidos automático al arrancar
-# 🚀 ESTE BLOQUE VA AL FINAL DEL TODO DE TU ARCHIVO APP.PY
-if __name__ == "__main__":
-    import os
-    # Le preguntamos a Render qué puerto nos ha asignado en internet.
-    # Si estamos en nuestra casa (local), usará el puerto 5000 por defecto.
     puerto = int(os.environ.get("PORT", 5000))
-    
-    print(f"🖥️ Arrancando el motor de la Peña Busto en el puerto {puerto}...")
-    
-    # Arrancamos Flask escuchando a todo el mundo (0.0.0.0) y en el puerto correcto
+    print(f"🖥️ Motor de la Peña Busto encendido con éxito en el puerto {puerto}...")
     app.run(host="0.0.0.0", port=puerto, debug=False)
