@@ -1,8 +1,13 @@
 import os
 import sqlite3
-from flask import Flask, render_template, request, redirect, url_for
+from flask import Flask, render_template, request, redirect, url_for, session
 
 app = Flask(__name__)
+
+# 🔐 LLAVE DE SEGURIDAD PARA LAS SESIONES VIP Y CONTRASEÑA MAESTRA
+app.secret_key = "llave_secreta_pena_busto_elite_2026"
+PASSWORD_ADMIN = "Fantasia1183@"
+
 
 # 🗄️ CONEXIÓN AL ARCHIVADOR (Base de datos SQLite)
 def conectar_bd():
@@ -24,7 +29,7 @@ def verificar_y_actualizar_base_datos():
     cursor.execute("INSERT OR IGNORE INTO configuracion (clave, valor) VALUES ('jornada', 1)")
     cursor.execute("INSERT OR IGNORE INTO configuracion (clave, valor) VALUES ('temporada', 2026)")
     
-    # 2. Tabla de partidos (Incluye 'signo_doble' para saber exactamente qué signo firmó el del doble)
+    # 2. Tabla de partidos (Incluye 'signo_doble' para saber qué signo firmó el del doble)
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS partidos (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -43,7 +48,7 @@ def verificar_y_actualizar_base_datos():
     )
     """)
     
-    # Migración segura: si tu base de datos antigua aún no tiene 'signo_doble', la añadimos sin borrar datos
+    # Migración segura: añade 'signo_doble' si la base de datos ya existía sin esta columna
     cursor.execute("PRAGMA table_info(partidos)")
     columnas_partidos = [col[1] for col in cursor.fetchall()]
     if "signo_doble" not in columnas_partidos:
@@ -96,17 +101,11 @@ def verificar_y_actualizar_base_datos():
 verificar_y_actualizar_base_datos()
 
 
-# ⚖️ FUNCIÓN MAESTRA DE REPARTO EQUITATIVO (Nadie repite en el mismo boleto)
+# ⚖️ FUNCIÓN DE REPARTO EQUITATIVO (Nadie repite en el mismo boleto)
 def obtener_reparto_equitativo(cursor):
-    # Ordenamos a los 28 peñistas de MENOR a MAYOR número de partidos jugados en el año
     cursor.execute("SELECT nombre, partidos_asignados FROM usuarios ORDER BY partidos_asignados ASC, id ASC")
     lista_ordenada = cursor.fetchall()
     
-    # Reparto sin repeticiones:
-    # - Puestos 0 al 13 (14 socios): Titulares de los partidos 1 al 14
-    # - Puestos 14 al 18 (5 socios): Encargados de los 5 dobles
-    # - Puesto 19 (1 socio): Encargado del Pleno al 15
-    # - Puestos 20 al 27 (8 socios): Descansan en la grada
     titulares_14 = [u[0] for u in lista_ordenada[:14]]
     dobleros_5 = [u[0] for u in lista_ordenada[14:19]]
     pleno_15_resp = lista_ordenada[19][0] if len(lista_ordenada) > 19 else lista_ordenada[0][0]
@@ -131,7 +130,6 @@ def inicio():
     cursor.execute("SELECT valor FROM configuracion WHERE clave = 'temporada'")
     temporada = cursor.fetchone()[0]
     
-    # Obtenemos el reparto equitativo actual
     titulares_14, dobleros_5, pleno_15_resp, convocados_20, descansan_8 = obtener_reparto_equitativo(cursor)
     
     cursor.execute("""
@@ -144,11 +142,7 @@ def inicio():
     partidos_limpios = []
     for p in partidos_db:
         num = p[0]
-        if num <= 14:
-            responsable = titulares_14[num - 1]
-        else:
-            responsable = pleno_15_resp
-            
+        responsable = titulares_14[num - 1] if num <= 14 else pleno_15_resp
         lista_dobles_partido = [p[4]] if (p[4] and p[4] != "") else []
         
         partido = {
@@ -171,7 +165,6 @@ def inicio():
             partido["pronostico"] = "X"
         partidos_limpios.append(partido)
     
-    # Ranking ordenado por aciertos (descendente) y errores (ascendente)
     cursor.execute("SELECT nombre, aciertos, errores FROM usuarios ORDER BY aciertos DESC, errores ASC, nombre ASC")
     usuarios_db = cursor.fetchall()
     peñistas_lista = [{"nombre": u[0], "aciertos": u[1], "errores": u[2]} for u in usuarios_db]
@@ -191,31 +184,6 @@ def inicio():
         temporada=temporada,
         es_pasado=False
     )
-
-
-# 🔐 RUTA DEL PANEL DE ADMINISTRACIÓN
-@app.route("/admin")
-def admin_panel():
-    conexion = conectar_bd()
-    cursor = conexion.cursor()
-    
-    cursor.execute("SELECT valor FROM configuracion WHERE clave = 'temporada'")
-    temporada = cursor.fetchone()[0]
-    
-    cursor.execute("SELECT valor FROM configuracion WHERE clave = 'jornada'")
-    jornada = cursor.fetchone()[0]
-    
-    cursor.execute("""
-        SELECT num_partido, local, visitante, division, resultado_real, pleno_local_real, pleno_visitante_real 
-        FROM partidos ORDER BY num_partido ASC
-    """)
-    partidos = cursor.fetchall()
-    
-    cursor.execute("SELECT id, nombre, aciertos, errores FROM usuarios ORDER BY nombre ASC")
-    usuarios = cursor.fetchall()
-    
-    conexion.close()
-    return render_template("admin.html", partidos=partidos, jornada=jornada, temporada=temporada, usuarios=usuarios)
 
 
 # 💾 GUARDAR PRONÓSTICO DESDE LA PORTADA
@@ -263,9 +231,67 @@ def asignar_doble():
     return "OK", 200
 
 
-# 📋 ESCÁNER INTELIGENTE DE BOLETO (Pegar 15 partidos)
+# ==============================================================================
+# 🔐 ZONA PROTEGIDA DE ADMINISTRACIÓN (Requiere iniciar sesión con contraseña)
+# ==============================================================================
+
+# 🔑 RUTA DE VALIDACIÓN DE CONTRASEÑA (Conecta con tu archivo admin_login.html)
+@app.route("/admin/login", methods=["GET", "POST"])
+def admin_login():
+    if request.method == "POST":
+        clave_introducida = request.form.get("admin_password", "")
+        if clave_introducida == PASSWORD_ADMIN:
+            # Colocamos la pulsera VIP al presidente
+            session["es_admin"] = True
+            return redirect("/admin")
+        else:
+            return render_template("admin_login.html", error="❌ Contraseña incorrecta. Inténtalo de nuevo.")
+            
+    return render_template("admin_login.html")
+
+
+# 🚪 RUTA PARA CERRAR SESIÓN DE ADMINISTRADOR
+@app.route("/admin/logout")
+def admin_logout():
+    session.pop("es_admin", None)
+    return redirect("/")
+
+
+# 🖥️ PANEL PRINCIPAL DE ADMINISTRACIÓN
+@app.route("/admin")
+def admin_panel():
+    # Comprobamos si llevas la pulsera VIP; si no, te pedimos la contraseña
+    if not session.get("es_admin"):
+        return render_template("admin_login.html")
+        
+    conexion = conectar_bd()
+    cursor = conexion.cursor()
+    
+    cursor.execute("SELECT valor FROM configuracion WHERE clave = 'temporada'")
+    temporada = cursor.fetchone()[0]
+    
+    cursor.execute("SELECT valor FROM configuracion WHERE clave = 'jornada'")
+    jornada = cursor.fetchone()[0]
+    
+    cursor.execute("""
+        SELECT num_partido, local, visitante, division, resultado_real, pleno_local_real, pleno_visitante_real 
+        FROM partidos ORDER BY num_partido ASC
+    """)
+    partidos = cursor.fetchall()
+    
+    cursor.execute("SELECT id, nombre, aciertos, errores FROM usuarios ORDER BY nombre ASC")
+    usuarios = cursor.fetchall()
+    
+    conexion.close()
+    return render_template("admin.html", partidos=partidos, jornada=jornada, temporada=temporada, usuarios=usuarios)
+
+
+# 📋 ESCÁNER INTELIGENTE DE BOLETO (Protegido)
 @app.route("/admin/pegar_boleto", methods=["POST"])
 def pegar_boleto():
+    if not session.get("es_admin"):
+        return redirect("/admin")
+        
     texto_bruto = request.form.get("texto_partidos", "")
     lineas = texto_bruto.strip().split("\n")
     
@@ -310,9 +336,12 @@ def pegar_boleto():
     return redirect("/admin")
 
 
-# 📝 GUARDAR EDICIÓN MANUAL DE PARTIDOS (Bloque 2 de /admin)
+# 📝 GUARDAR EDICIÓN MANUAL DE PARTIDOS (Protegido)
 @app.route("/admin/guardar_partidos", methods=["POST"])
 def guardar_partidos():
+    if not session.get("es_admin"):
+        return redirect("/admin")
+        
     num_jornada = request.form.get("num_jornada_oficial", type=int, default=1)
     conexion = conectar_bd()
     cursor = conexion.cursor()
@@ -334,9 +363,12 @@ def guardar_partidos():
     return redirect("/admin")
 
 
-# 🎯 MARCAR RESULTADO REAL DE LA TELEVISIÓN (Bloque 1 de /admin)
+# 🎯 MARCAR RESULTADO REAL DE LA TELEVISIÓN (Protegido)
 @app.route("/admin/marcar_resultado", methods=["POST"])
 def marcar_resultado():
+    if not session.get("es_admin"):
+        return redirect("/admin")
+        
     num_partido = request.form.get("partido_num")
     conexion = conectar_bd()
     cursor = conexion.cursor()
@@ -362,16 +394,17 @@ def marcar_resultado():
     return redirect("/admin")
 
 
-# 🏆 ESCRUTINIO INDIVIDUAL EXACTO Y ROTACIÓN EQUITATIVA (Bloque 3 de /admin)
+# 🏆 ESCRUTINIO INDIVIDUAL EXACTO Y ROTACIÓN EQUITATIVA (Protegido)
 @app.route("/admin/cerrar_jornada", methods=["POST"])
 def cerrar_jornada():
+    if not session.get("es_admin"):
+        return redirect("/admin")
+        
     conexion = conectar_bd()
     cursor = conexion.cursor()
     
-    # 1. Obtenemos quiénes eran los 20 convocados de esta jornada según el reparto equitativo
     titulares_14, dobleros_5, pleno_15_resp, convocados_20, _ = obtener_reparto_equitativo(cursor)
     
-    # 2. Revisamos los 14 partidos evaluables
     cursor.execute("""
         SELECT num_partido, pronostico, resultado_real, doble_por, signo_doble 
         FROM partidos 
@@ -392,35 +425,27 @@ def cerrar_jornada():
             
         titular = titulares_14[num - 1]
         
-        # Caso 1: Este partido tiene un DOBLE firmado por otro compañero
         if quien_doble and signo_del_doble:
-            # Deducimos cuál era el signo original del titular quitando el signo del doble
             signo_titular = pronostico_pena.replace(signo_del_doble, "")
             
-            # Evaluamos al TITULAR por su signo individual
             if resultado_tele == signo_titular:
                 cursor.execute("UPDATE usuarios SET aciertos = aciertos + 1 WHERE nombre = ?", (titular,))
             else:
                 cursor.execute("UPDATE usuarios SET errores = errores + 1 WHERE nombre = ?", (titular,))
                 
-            # Evaluamos al DEL DOBLE por su signo individual
             if resultado_tele == signo_del_doble:
                 cursor.execute("UPDATE usuarios SET aciertos = aciertos + 1 WHERE nombre = ?", (quien_doble,))
             else:
                 cursor.execute("UPDATE usuarios SET errores = errores + 1 WHERE nombre = ?", (quien_doble,))
-                
-        # Caso 2: Partido simple (solo juega el titular)
         else:
             if resultado_tele in pronostico_pena:
                 cursor.execute("UPDATE usuarios SET aciertos = aciertos + 1 WHERE nombre = ?", (titular,))
             else:
                 cursor.execute("UPDATE usuarios SET errores = errores + 1 WHERE nombre = ?", (titular,))
 
-    # 3. Sumamos +1 partido asignado a los 20 convocados de esta semana para que roten la próxima jornada
     for c in convocados_20:
         cursor.execute("UPDATE usuarios SET partidos_asignados = partidos_asignados + 1 WHERE nombre = ?", (c["nombre"],))
 
-    # 4. Avanzamos el número de jornada activa en +1
     cursor.execute("UPDATE configuracion SET valor = valor + 1 WHERE clave = 'jornada'")
 
     conexion.commit()
@@ -428,9 +453,12 @@ def cerrar_jornada():
     return redirect("/")
 
 
-# ✍️ AJUSTE MANUAL DE CLASIFICACIÓN (Bloque 3.B de /admin)
+# ✍️ AJUSTE MANUAL DE CLASIFICACIÓN (Protegido)
 @app.route("/admin/guardar_clasificacion_manual", methods=["POST"])
 def guardar_clasificacion_manual():
+    if not session.get("es_admin"):
+        return redirect("/admin")
+        
     conexion = conectar_bd()
     cursor = conexion.cursor()
     
@@ -452,9 +480,12 @@ def guardar_clasificacion_manual():
     return redirect("/admin")
 
 
-# 🚨 REINICIO MAESTRO DE TEMPORADA (Bloque 4 de /admin)
+# 🚨 REINICIO MAESTRO DE TEMPORADA (Protegido)
 @app.route("/admin/reiniciar_temporada", methods=["POST"])
 def reiniciar_temporada():
+    if not session.get("es_admin"):
+        return redirect("/admin")
+        
     conexion = conectar_bd()
     cursor = conexion.cursor()
     cursor.execute("UPDATE usuarios SET aciertos = 0, errores = 0, partidos_asignados = 0")
