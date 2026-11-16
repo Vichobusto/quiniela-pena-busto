@@ -19,7 +19,7 @@ def verificar_y_actualizar_base_datos():
     conexion = conectar_bd()
     cursor = conexion.cursor()
     
-    # 1. Tabla de configuración
+    # 1. Tabla de configuración (Guarda jornada y temporada actual)
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS configuracion (
         clave TEXT PRIMARY KEY,
@@ -29,7 +29,7 @@ def verificar_y_actualizar_base_datos():
     cursor.execute("INSERT OR IGNORE INTO configuracion (clave, valor) VALUES ('jornada', 1)")
     cursor.execute("INSERT OR IGNORE INTO configuracion (clave, valor) VALUES ('temporada', 2026)")
     
-    # 2. Tabla de partidos (Incluye 'signo_doble' para saber qué signo firmó el del doble)
+    # 2. Tabla de partidos activos (La pizarra de la semana actual)
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS partidos (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -48,13 +48,33 @@ def verificar_y_actualizar_base_datos():
     )
     """)
     
-    # Migración segura: añade 'signo_doble' si la base de datos ya existía sin esta columna
+    # Migración segura de columna signo_doble por si la base de datos ya existía
     cursor.execute("PRAGMA table_info(partidos)")
     columnas_partidos = [col[1] for col in cursor.fetchall()]
     if "signo_doble" not in columnas_partidos:
         cursor.execute("ALTER TABLE partidos ADD COLUMN signo_doble TEXT DEFAULT ''")
+        
+    # 3. Tabla de HISTORIAL DE JORNADAS (El álbum de fotos de boletos cerrados)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS historial_jornadas (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        jornada INTEGER NOT NULL,
+        num_partido INTEGER NOT NULL,
+        local TEXT NOT NULL,
+        visitante TEXT NOT NULL,
+        division TEXT NOT NULL,
+        pronosticador TEXT NOT NULL,
+        doble_por TEXT DEFAULT '',
+        pronostico TEXT DEFAULT '-',
+        resultado_real TEXT DEFAULT '-',
+        pleno_local TEXT DEFAULT '-',
+        pleno_visitante TEXT DEFAULT '-',
+        pleno_local_real TEXT DEFAULT '-',
+        pleno_visitante_real TEXT DEFAULT '-'
+    )
+    """)
     
-    # 3. Tabla de usuarios (Guarda aciertos, errores y el contador equitativo 'partidos_asignados')
+    # 4. Tabla de usuarios (Plantilla oficial de los 28 peñistas)
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS usuarios (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -116,7 +136,7 @@ def obtener_reparto_equitativo(cursor):
     return titulares_14, dobleros_5, pleno_15_resp, convocados_20, descansan_8
 
 
-# 🏠 RUTA PÚBLICA: PORTADA DE LA PEÑA
+# 🏠 RUTA PÚBLICA: PORTADA DE LA PEÑA (Soporta jornada activa y jornadas archivadas)
 @app.route("/")
 def inicio():
     conexion = conectar_bd()
@@ -130,40 +150,55 @@ def inicio():
     cursor.execute("SELECT valor FROM configuracion WHERE clave = 'temporada'")
     temporada = cursor.fetchone()[0]
     
+    # Obtenemos qué jornadas existen en el historial + la jornada activa actual
+    cursor.execute("SELECT DISTINCT jornada FROM historial_jornadas ORDER BY jornada ASC")
+    jornadas_hist = [fila[0] for fila in cursor.fetchall()]
+    jornadas_disponibles = sorted(list(set(jornadas_hist + [jornada_activa])))
+    
     titulares_14, dobleros_5, pleno_15_resp, convocados_20, descansan_8 = obtener_reparto_equitativo(cursor)
     
-    cursor.execute("""
-        SELECT num_partido, local, visitante, division, doble_por, pronostico, 
-               resultado_real, pleno_local, pleno_visitante, pleno_local_real, pleno_visitante_real, signo_doble
-        FROM partidos ORDER BY num_partido ASC
-    """)
-    partidos_db = cursor.fetchall()
-    
     partidos_limpios = []
-    for p in partidos_db:
-        num = p[0]
-        responsable = titulares_14[num - 1] if num <= 14 else pleno_15_resp
-        lista_dobles_partido = [p[4]] if (p[4] and p[4] != "") else []
-        
-        partido = {
-            "num": num,
-            "local": p[1],
-            "visitante": p[2],
-            "division": p[3],
-            "doble_por": p[4],
-            "dobles": lista_dobles_partido,
-            "pronosticador": responsable,
-            "pronostico": p[5] if p[5] else "-",
-            "resultado_real": p[6] if p[6] else "-",
-            "pleno_local": p[7],
-            "pleno_visitante": p[8],
-            "pleno_local_real": p[9],
-            "pleno_visitante_real": p[10],
-            "signo_doble": p[11]
-        }
-        if p[5] and p[5].strip().upper() == "X":
-            partido["pronostico"] = "X"
-        partidos_limpios.append(partido)
+    es_pasado = False
+    
+    # Si el usuario selecciona en el desplegable una jornada anterior ya archivada:
+    if jornada_viendo != jornada_activa and jornada_viendo in jornadas_hist:
+        es_pasado = True
+        cursor.execute("""
+            SELECT num_partido, local, visitante, division, pronosticador, doble_por, pronostico, 
+                   resultado_real, pleno_local, pleno_visitante, pleno_local_real, pleno_visitante_real
+            FROM historial_jornadas WHERE jornada = ? ORDER BY num_partido ASC
+        """, (jornada_viendo,))
+        for p in cursor.fetchall():
+            lista_dobles = [p[5]] if (p[5] and p[5] != "") else []
+            partidos_limpios.append({
+                "num": p[0], "local": p[1], "visitante": p[2], "division": p[3],
+                "pronosticador": p[4], "doble_por": p[5], "dobles": lista_dobles,
+                "pronostico": p[6], "resultado_real": p[7],
+                "pleno_local": p[8], "pleno_visitante": p[9],
+                "pleno_local_real": p[10], "pleno_visitante_real": p[11]
+            })
+    else:
+        # Mostramos la jornada activa actual
+        cursor.execute("""
+            SELECT num_partido, local, visitante, division, doble_por, pronostico, 
+                   resultado_real, pleno_local, pleno_visitante, pleno_local_real, pleno_visitante_real, signo_doble
+            FROM partidos ORDER BY num_partido ASC
+        """)
+        for p in cursor.fetchall():
+            num = p[0]
+            responsable = titulares_14[num - 1] if num <= 14 else pleno_15_resp
+            lista_dobles_partido = [p[4]] if (p[4] and p[4] != "") else []
+            partido = {
+                "num": num, "local": p[1], "visitante": p[2], "division": p[3],
+                "doble_por": p[4], "dobles": lista_dobles_partido, "pronosticador": responsable,
+                "pronostico": p[5] if p[5] else "-", "resultado_real": p[6] if p[6] else "-",
+                "pleno_local": p[7], "pleno_visitante": p[8],
+                "pleno_local_real": p[9], "pleno_visitante_real": p[10],
+                "signo_doble": p[11]
+            }
+            if p[5] and p[5].strip().upper() == "X":
+                partido["pronostico"] = "X"
+            partidos_limpios.append(partido)
     
     cursor.execute("SELECT nombre, aciertos, errores FROM usuarios ORDER BY aciertos DESC, errores ASC, nombre ASC")
     usuarios_db = cursor.fetchall()
@@ -180,9 +215,9 @@ def inicio():
         convocados=convocados_20,            
         descansan=descansan_8,              
         jornada_viendo=jornada_viendo, 
-        jornadas_disponibles=[1, 2, 3, jornada_activa],
+        jornadas_disponibles=jornadas_disponibles,
         temporada=temporada,
-        es_pasado=False
+        es_pasado=es_pasado
     )
 
 
@@ -232,35 +267,29 @@ def asignar_doble():
 
 
 # ==============================================================================
-# 🔐 ZONA PROTEGIDA DE ADMINISTRACIÓN (Requiere iniciar sesión con contraseña)
+# 🔐 ZONA PROTEGIDA DE ADMINISTRACIÓN
 # ==============================================================================
 
-# 🔑 RUTA DE VALIDACIÓN DE CONTRASEÑA (Conecta con tu archivo admin_login.html)
 @app.route("/admin/login", methods=["GET", "POST"])
 def admin_login():
     if request.method == "POST":
         clave_introducida = request.form.get("admin_password", "")
         if clave_introducida == PASSWORD_ADMIN:
-            # Colocamos la pulsera VIP al presidente
             session["es_admin"] = True
             return redirect("/admin")
         else:
             return render_template("admin_login.html", error="❌ Contraseña incorrecta. Inténtalo de nuevo.")
-            
     return render_template("admin_login.html")
 
 
-# 🚪 RUTA PARA CERRAR SESIÓN DE ADMINISTRADOR
 @app.route("/admin/logout")
 def admin_logout():
     session.pop("es_admin", None)
     return redirect("/")
 
 
-# 🖥️ PANEL PRINCIPAL DE ADMINISTRACIÓN
 @app.route("/admin")
 def admin_panel():
-    # Comprobamos si llevas la pulsera VIP; si no, te pedimos la contraseña
     if not session.get("es_admin"):
         return render_template("admin_login.html")
         
@@ -286,7 +315,7 @@ def admin_panel():
     return render_template("admin.html", partidos=partidos, jornada=jornada, temporada=temporada, usuarios=usuarios)
 
 
-# 📋 ESCÁNER INTELIGENTE DE BOLETO (Protegido)
+# 📋 ESCÁNER DE PARTIDOS (Pegar 15 partidos)
 @app.route("/admin/pegar_boleto", methods=["POST"])
 def pegar_boleto():
     if not session.get("es_admin"):
@@ -302,15 +331,13 @@ def pegar_boleto():
     contador = 1
     for linea in lineas:
         linea_limpia = linea.strip()
-        if not linea_limpia:
+        if not linea_limpia or "-" not in linea_limpia:
             continue
             
         if " - " in linea_limpia:
             local, visitante = linea_limpia.split(" - ", 1)
-        elif "-" in linea_limpia:
-            local, visitante = linea_limpia.split("-", 1)
         else:
-            local, visitante = linea_limpia, "Visitante"
+            local, visitante = linea_limpia.split("-", 1)
             
         local = local.lstrip("0123456789.-) ").strip()
         visitante = visitante.strip()
@@ -336,7 +363,47 @@ def pegar_boleto():
     return redirect("/admin")
 
 
-# 📝 GUARDAR EDICIÓN MANUAL DE PARTIDOS (Protegido)
+# 🎯 ESCÁNER DE RESULTADOS (Lee parejas exactas: Línea 1 = Partido, Línea 2 = Signo)
+@app.route("/admin/pegar_resultados", methods=["POST"])
+def pegar_resultados():
+    if not session.get("es_admin"):
+        return redirect("/admin")
+        
+    texto_bruto = request.form.get("texto_resultados", "")
+    # Limpiamos cualquier línea en blanco que se haya colado al copiar y pegar
+    lineas = [l.strip() for l in texto_bruto.strip().split("\n") if l.strip()]
+    
+    conexion = conectar_bd()
+    cursor = conexion.cursor()
+    
+    num_partido_actual = 1
+    # Avanzamos de 2 en 2: en 'i' está el partido y en 'i + 1' está el resultado
+    for i in range(0, len(lineas) - 1, 2):
+        if num_partido_actual > 15:
+            break
+            
+        resultado = lineas[i + 1].upper().strip()
+        
+        if num_partido_actual <= 14:
+            if resultado in ["1", "X", "2"]:
+                cursor.execute("UPDATE partidos SET resultado_real = ? WHERE num_partido = ?", (resultado, num_partido_actual))
+                num_partido_actual += 1
+        elif num_partido_actual == 15:
+            if "-" in resultado:
+                goles_l, goles_v = resultado.split("-", 1)
+                cursor.execute("""
+                    UPDATE partidos 
+                    SET pleno_local_real = ?, pleno_visitante_real = ? 
+                    WHERE num_partido = 15
+                """, (goles_l.strip(), goles_v.strip()))
+                num_partido_actual += 1
+                
+    conexion.commit()
+    conexion.close()
+    return redirect("/admin")
+
+
+# 📝 GUARDAR EDICIÓN MANUAL DE PARTIDOS
 @app.route("/admin/guardar_partidos", methods=["POST"])
 def guardar_partidos():
     if not session.get("es_admin"):
@@ -363,7 +430,7 @@ def guardar_partidos():
     return redirect("/admin")
 
 
-# 🎯 MARCAR RESULTADO REAL DE LA TELEVISIÓN (Protegido)
+# 🎯 MARCAR RESULTADO REAL INDIVIDUAL
 @app.route("/admin/marcar_resultado", methods=["POST"])
 def marcar_resultado():
     if not session.get("es_admin"):
@@ -394,7 +461,7 @@ def marcar_resultado():
     return redirect("/admin")
 
 
-# 🏆 ESCRUTINIO INDIVIDUAL EXACTO Y ROTACIÓN EQUITATIVA (Protegido)
+# 🏆 ESCRUTINIO INDIVIDUAL EXACTO, ARCHIVADO EN HISTORIAL Y ROTACIÓN EQUITATIVA
 @app.route("/admin/cerrar_jornada", methods=["POST"])
 def cerrar_jornada():
     if not session.get("es_admin"):
@@ -403,49 +470,66 @@ def cerrar_jornada():
     conexion = conectar_bd()
     cursor = conexion.cursor()
     
+    cursor.execute("SELECT valor FROM configuracion WHERE clave = 'jornada'")
+    jornada_actual = cursor.fetchone()[0]
+    
     titulares_14, dobleros_5, pleno_15_resp, convocados_20, _ = obtener_reparto_equitativo(cursor)
     
     cursor.execute("""
-        SELECT num_partido, pronostico, resultado_real, doble_por, signo_doble 
+        SELECT num_partido, local, visitante, division, pronostico, resultado_real, 
+               doble_por, signo_doble, pleno_local, pleno_visitante, pleno_local_real, pleno_visitante_real 
         FROM partidos 
-        WHERE num_partido <= 14 
         ORDER BY num_partido ASC
     """)
     partidos = cursor.fetchall()
     
+    # Borramos si hubiera un archivo previo de esta misma jornada para evitar duplicados
+    cursor.execute("DELETE FROM historial_jornadas WHERE jornada = ?", (jornada_actual,))
+    
     for p in partidos:
-        num = p[0]
-        pronostico_pena = p[1] or "-"
-        resultado_tele = p[2] or "-"
-        quien_doble = p[3] or ""
-        signo_del_doble = p[4] or ""
+        num, local, visitante, division = p[0], p[1], p[2], p[3]
+        pronostico_pena = p[4] or "-"
+        resultado_tele = p[5] or "-"
+        quien_doble = p[6] or ""
+        signo_del_doble = p[7] or ""
+        pleno_l, pleno_v, pleno_l_real, pleno_v_real = p[8], p[9], p[10], p[11]
         
-        if resultado_tele == "-":
-            continue
-            
-        titular = titulares_14[num - 1]
+        responsable = titulares_14[num - 1] if num <= 14 else pleno_15_resp
         
-        if quien_doble and signo_del_doble:
-            signo_titular = pronostico_pena.replace(signo_del_doble, "")
-            
-            if resultado_tele == signo_titular:
-                cursor.execute("UPDATE usuarios SET aciertos = aciertos + 1 WHERE nombre = ?", (titular,))
-            else:
-                cursor.execute("UPDATE usuarios SET errores = errores + 1 WHERE nombre = ?", (titular,))
+        # 1. Guardamos la foto de este partido en el ÁLBUM HISTÓRICO
+        cursor.execute("""
+            INSERT INTO historial_jornadas (
+                jornada, num_partido, local, visitante, division, pronosticador, doble_por, 
+                pronostico, resultado_real, pleno_local, pleno_visitante, pleno_local_real, pleno_visitante_real
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (jornada_actual, num, local, visitante, division, responsable, quien_doble, 
+              pronostico_pena, resultado_tele, pleno_l, pleno_v, pleno_l_real, pleno_v_real))
+        
+        # 2. Calculamos aciertos y errores en los primeros 14 partidos
+        if num <= 14 and resultado_tele != "-":
+            if quien_doble and signo_del_doble:
+                signo_titular = pronostico_pena.replace(signo_del_doble, "")
                 
-            if resultado_tele == signo_del_doble:
-                cursor.execute("UPDATE usuarios SET aciertos = aciertos + 1 WHERE nombre = ?", (quien_doble,))
+                if resultado_tele == signo_titular:
+                    cursor.execute("UPDATE usuarios SET aciertos = aciertos + 1 WHERE nombre = ?", (responsable,))
+                else:
+                    cursor.execute("UPDATE usuarios SET errores = errores + 1 WHERE nombre = ?", (responsable,))
+                    
+                if resultado_tele == signo_del_doble:
+                    cursor.execute("UPDATE usuarios SET aciertos = aciertos + 1 WHERE nombre = ?", (quien_doble,))
+                else:
+                    cursor.execute("UPDATE usuarios SET errores = errores + 1 WHERE nombre = ?", (quien_doble,))
             else:
-                cursor.execute("UPDATE usuarios SET errores = errores + 1 WHERE nombre = ?", (quien_doble,))
-        else:
-            if resultado_tele in pronostico_pena:
-                cursor.execute("UPDATE usuarios SET aciertos = aciertos + 1 WHERE nombre = ?", (titular,))
-            else:
-                cursor.execute("UPDATE usuarios SET errores = errores + 1 WHERE nombre = ?", (titular,))
+                if resultado_tele in pronostico_pena:
+                    cursor.execute("UPDATE usuarios SET aciertos = aciertos + 1 WHERE nombre = ?", (responsable,))
+                else:
+                    cursor.execute("UPDATE usuarios SET errores = errores + 1 WHERE nombre = ?", (responsable,))
 
+    # 3. Rotamos a los 20 convocados sumándoles +1 partido asignado
     for c in convocados_20:
         cursor.execute("UPDATE usuarios SET partidos_asignados = partidos_asignados + 1 WHERE nombre = ?", (c["nombre"],))
 
+    # 4. Avanzamos a la siguiente jornada
     cursor.execute("UPDATE configuracion SET valor = valor + 1 WHERE clave = 'jornada'")
 
     conexion.commit()
@@ -453,7 +537,7 @@ def cerrar_jornada():
     return redirect("/")
 
 
-# ✍️ AJUSTE MANUAL DE CLASIFICACIÓN (Protegido)
+# ✍️ AJUSTE MANUAL DE CLASIFICACIÓN
 @app.route("/admin/guardar_clasificacion_manual", methods=["POST"])
 def guardar_clasificacion_manual():
     if not session.get("es_admin"):
@@ -480,7 +564,7 @@ def guardar_clasificacion_manual():
     return redirect("/admin")
 
 
-# 🚨 REINICIO MAESTRO DE TEMPORADA (Protegido)
+# 🚨 REINICIO MAESTRO DE TEMPORADA
 @app.route("/admin/reiniciar_temporada", methods=["POST"])
 def reiniciar_temporada():
     if not session.get("es_admin"):
@@ -489,6 +573,8 @@ def reiniciar_temporada():
     conexion = conectar_bd()
     cursor = conexion.cursor()
     cursor.execute("UPDATE usuarios SET aciertos = 0, errores = 0, partidos_asignados = 0")
+    cursor.execute("DELETE FROM historial_jornadas")
+    cursor.execute("UPDATE configuracion SET valor = 1 WHERE clave = 'jornada'")
     conexion.commit()
     conexion.close()
     return redirect("/admin")

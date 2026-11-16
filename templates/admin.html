@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Panel Administrador - Peña Busto</title>
     <style>
-        /* 🎨 ESTILOS VISUALES (La pintura, colores y distribución del despacho) */
         :root {
             --admin-color: #b71c1c;
             --admin-dark: #7f0000;
@@ -41,6 +40,27 @@
     <div class="contenedor">
         <h1>⚙️ DESPACHO DE ADMINISTRACIÓN MASTER</h1>
         <p class="sub">Temporada Activa {{ temporada }} — JORNADA DE TRABAJO REAL: Nº {{ jornada }}</p>
+
+        <!-- 🎯 BLOQUE 0: ESCÁNER DE RESULTADOS OFICIALES (Parejas: Línea 1 Partido / Línea 2 Signo) -->
+        <div class="bloque" style="background-color: #fff8e1; border: 2px dashed #ff8f00;">
+            <h2 style="color: #e65100; border-color: #ff8f00;">🎯 0. PEGAR RESULTADOS OFICIALES DEL DOMINGO</h2>
+            <p style="font-size: 0.9rem; margin-bottom: 12px; color: #555; font-weight: 600;">
+                Pega aquí las 15 parejas (Línea 1: Partido, Línea 2: Signo oficial, y para el Pleno al 15 ej. <em>2-M</em>) y pulsa el botón:
+            </p>
+            
+            <form action="/admin/pegar_resultados" method="POST">
+                <textarea 
+                    name="texto_resultados" 
+                    rows="8" 
+                    placeholder="Valladolid - Castellón&#10;2&#10;Real Sociedad B - Sporting&#10;X&#10;..." 
+                    style="width: 100%; padding: 12px; border: 2px solid #ffb74d; border-radius: 8px; font-family: 'Segoe UI', sans-serif; font-size: 0.95rem; margin-bottom: 10px; resize: vertical;"
+                    required></textarea>
+                
+                <button type="submit" class="btn-accion" style="background: linear-gradient(135deg, #ff8f00, #e65100); margin-top: 0;">
+                    ⚡ Rellenar Automáticamente los 15 Resultados
+                </button>
+            </form>
+        </div>
         
         <!-- BLOQUE 1: MARCAR RESULTADOS REALES -->
         <div class="bloque">
@@ -51,7 +71,6 @@
                 <span style="flex: 1; font-weight: 700; font-size: 1.05rem;">{{ part[1] }} vs {{ part[2] }}</span>
                 
                 {% if part[0] == 15 %}
-                    <!-- Formulario especial para los goles reales del Pleno al 15 -->
                     <form action="/admin/marcar_resultado" method="POST" style="display: flex; align-items: center; gap: 6px;">
                         <input type="hidden" name="partido_num" value="15">
                         <select name="goles_l_real">
@@ -70,7 +89,6 @@
                         <button type="submit" class="btn-signo {% if part[5] != '-' %}marcado-p15{% endif %}">💾</button>
                     </form>
                 {% else %}
-                    <!-- Botones rápidos 1, X, 2 para los primeros 14 partidos -->
                     <form action="/admin/marcar_resultado" method="POST" style="display: flex; gap: 6px;">
                         <input type="hidden" name="partido_num" value="{{ part[0] }}">
                         <button type="submit" name="signo_real" value="1" class="btn-signo {% if part[4]=='1' %}marcado{% endif %}">1</button>
@@ -82,14 +100,13 @@
             {% endfor %}
         </div>
 
-        <!-- 📋 BLOQUE 1.B: ESCÁNER DE PEGADO RÁPIDO EN 5 SEGUNDOS -->
+        <!-- 📋 BLOQUE 1.B: ESCÁNER DE PEGADO RÁPIDO DE PARTIDOS -->
         <div class="bloque" style="background-color: #e8f5e9; border: 2px dashed #2e7d32;">
             <h2 style="color: #2e7d32; border-color: #2e7d32;">📋 1.B PEGAR BOLETO OFICIAL (15 PARTIDOS)</h2>
             <p style="font-size: 0.9rem; margin-bottom: 12px; color: #388e3c; font-weight: 600;">
-                Copia los 15 partidos de cualquier web deportiva (incluyendo Segunda o Liga F), pégalos aquí abajo (un partido por línea, ej: <em>Real Madrid - Barcelona</em>) y pulsa el botón:
+                Copia los 15 partidos de la nueva jornada (un partido por línea, ej: <em>Real Madrid - Barcelona</em>) y pulsa el botón:
             </p>
             
-            <!-- Envía el texto pegado a la función pegar_boleto en app.py -->
             <form action="/admin/pegar_boleto" method="POST">
                 <textarea 
                     name="texto_partidos" 
@@ -129,54 +146,4 @@
         <!-- BLOQUE 3: CIERRE Y REPARTO DE PUNTOS AUTOMÁTICO -->
         <div class="bloque" style="background-color: #fff3e0; border-color: #ffb300;">
             <h2 style="color: #e65100; border-color: #ffb300;">🔒 3. EJECUTAR ESCRUTINIO Y AVANZAR SEMANA</h2>
-            <p style="font-size: 0.9rem; margin-bottom: 15px; color: #555;">Calcula al instante el reparto de aciertos según los signos marcados en el Bloque 1 y actualiza la tabla de posiciones general de la peña.</p>
-            <form action="/admin/cerrar_jornada" method="POST">
-                <button type="submit" class="btn-accion btn-cerrar">🔒 Archivar y Calcular Puntos de la Jornada</button>
-            </form>
-        </div>
-
-        <!-- ✍️ BLOQUE 3.B: AJUSTE MANUAL DE CLASIFICACIÓN (Para poner al día jornadas pasadas) -->
-        <div class="bloque" style="background-color: #e3f2fd; border-color: #64b5f6;">
-            <h2 style="color: #1565c0; border-color: #1565c0;">✍️ 3.B AJUSTAR ACIERTOS Y ERRORES MANUALMENTE</h2>
-            <p style="font-size: 0.9rem; margin-bottom: 15px; color: #333;">
-                Introduce aquí el total de aciertos y errores acumulados de cada peñista para poner al día la clasificación de la temporada:
-            </p>
-            
-            <!-- Conecta directamente con @app.route("/admin/guardar_clasificacion_manual") en app.py -->
-            <form action="/admin/guardar_clasificacion_manual" method="POST">
-                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; margin-bottom: 15px;">
-                    {% for u in usuarios %}
-                    <div style="background: white; padding: 10px 14px; border-radius: 8px; border: 1px solid #bbdefb; display: flex; align-items: center; justify-content: space-between; gap: 8px;">
-                        <strong style="flex: 1; color: #1a252f;">{{ u[1] }}</strong>
-                        
-                        <label style="font-size: 0.85rem; color: #2e7d32; font-weight: bold;">⚽
-                            <input type="number" name="aciertos_{{ u[0] }}" value="{{ u[2] }}" min="0" style="width: 58px; padding: 5px; text-align: center; border-color: #81c784;" required>
-                        </label>
-                        
-                        <label style="font-size: 0.85rem; color: #c62828; font-weight: bold;">🟥
-                            <input type="number" name="errores_{{ u[0] }}" value="{{ u[3] }}" min="0" style="width: 58px; padding: 5px; text-align: center; border-color: #e57373;" required>
-                        </label>
-                    </div>
-                    {% endfor %}
-                </div>
-                
-                <button type="submit" class="btn-accion" style="background: linear-gradient(135deg, #1565c0, #0d47a1);">
-                    💾 Guardar Puntos Manuales en el Ranking
-                </button>
-            </form>
-        </div>
-
-        <!-- BLOQUE 4: RESETEO DE TEMPORADA -->
-        <div class="bloque" style="background-color: #ffebee; border-color: #ef9a9a;">
-            <h2 style="color: #c62828; border-color: #ef9a9a;">🚨 4. REINICIO MAESTRO DE LA TEMPORADA</h2>
-            <p style="font-size: 0.9rem; margin-bottom: 15px; color: #555;">Pone a cero absoluto los marcadores de aciertos y errores de todos los usuarios de la base de datos para arrancar un nuevo año deportivo.</p>
-            <form action="/admin/reiniciar_temporada" method="POST" onsubmit="return confirm('¿Seguro que quieres reiniciar la clasificación a 0 y comenzar una temporada nueva?');">
-                <button type="submit" class="btn-accion btn-peligro">🚨 Resetear Clasificación e Iniciar Nueva Temporada</button>
-            </form>
-        </div>
-
-        <a class="volver" href="/">⬅️ Volver a la Portada Pública de la Peña</a>
-    </div>
-
-</body>
-</html>
+            <p style="font-size: 0.9rem; margin-bottom:
