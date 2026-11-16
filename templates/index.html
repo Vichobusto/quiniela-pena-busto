@@ -2,7 +2,8 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- 📱 CONTROL DE ESCALA MÓVIL: Evita que la web se abra con zoom desbordado -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Peña Busto - Quiniela Elite</title>
     <!-- Librería profesional para generar las capturas de pantalla -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
@@ -15,6 +16,16 @@
             --bg-card: rgba(255, 255, 255, 0.95);
             --text: #2c3e50;
             --doble-color: #e65100;
+        }
+
+        /* 🛡️ REGLA DE SEGURIDAD: Evita que ningún elemento empuje la pantalla hacia los lados */
+        * {
+            box-sizing: border-box;
+        }
+
+        html, body {
+            max-width: 100%;
+            overflow-x: hidden;
         }
 
         body { 
@@ -36,9 +47,9 @@
             width: 100%;
             display: flex;
             align-items: center;
+            justify-content: center;
             gap: 30px;
-            margin-bottom: 30px;
-            box-sizing: border-box;
+            margin-bottom: 25px;
         }
 
         .logo-area {
@@ -50,12 +61,15 @@
 
         .logo-pena { 
             width: 440px; 
+            max-width: 100%; /* Nunca será más ancho que la pantalla */
             height: auto; 
             object-fit: contain;
             background: transparent;
             border: none;
             box-shadow: none;
             filter: drop-shadow(0px 8px 12px rgba(0,0,0,0.4));
+            display: block;
+            margin: 0 auto;
         }
 
         .navbar {
@@ -64,11 +78,11 @@
             padding: 25px 30px;
             border-radius: 16px;
             box-shadow: 0 8px 24px rgba(0,0,0,0.15);
-            box-sizing: border-box;
             color: white;
             min-height: 140px;
             display: flex;
             align-items: center;
+            justify-content: center;
         }
 
         .navbar-textos {
@@ -91,7 +105,7 @@
             margin: 5px 0 0 0; 
             color: #a5d6a7; 
             font-size: 1.2rem; 
-            font-weight: 500;
+            font-weight: 500; 
         }
 
         .btn-whatsapp-captura {
@@ -99,26 +113,21 @@
             color: white;
             border: none;
             padding: 12px 24px;
-            font-size: 1.1rem;
+            font-size: 1.05rem;
             font-weight: bold;
             border-radius: 30px;
             cursor: pointer;
-            margin-bottom: 25px;
+            margin: 0 auto 25px auto; /* Centrado automático horizontal */
             display: flex;
             align-items: center;
+            justify-content: center;
+            text-align: center;
             gap: 10px;
             box-shadow: 0 4px 15px rgba(37, 211, 102, 0.4);
             transition: transform 0.2s;
+            max-width: 95%;
         }
         .btn-whatsapp-captura:hover { transform: scale(1.03); }
-
-        @media (max-width: 900px) {
-            .header-container { flex-direction: column; gap: 20px; }
-            .logo-area { width: 100%; }
-            .logo-pena { width: 280px; }
-            .navbar { width: 100%; min-height: auto; padding: 20px; }
-            .navbar-textos h1 { font-size: 2rem; }
-        }
 
         .grid-principal { 
             display: grid; 
@@ -128,8 +137,6 @@
             width: 100%; 
             margin-bottom: 35px; 
         }
-
-        @media (max-width: 900px) { .grid-principal { grid-template-columns: 1fr; } }
 
         .bloque-titulo { 
             color: white; 
@@ -141,10 +148,12 @@
             font-weight: bold; 
             display: flex; 
             justify-content: space-between; 
-            align-items: center; 
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
         }
 
-        .contenedor-partidos { display: flex; flex-direction: column; gap: 15px; padding: 10px; border-radius: 16px; }
+        .contenedor-partidos { display: flex; flex-direction: column; gap: 15px; padding: 15px; border-radius: 16px; width: 100%; }
         
         .partido-card {
             background: var(--bg-card);
@@ -218,8 +227,8 @@
         .podio-2 { background: #f5f5f5 !important; }
         .podio-3 { background: #ffe0b2 !important; }
 
-        .panel-dobles { background: var(--bg-card); padding: 20px; border-radius: 14px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-top: 20px; }
-        .select-premium { padding: 10px; border-radius: 6px; border: 2px solid #ccc; font-size: 1rem; font-weight: bold; }
+        .panel-dobles { background: var(--bg-card); padding: 20px; border-radius: 14px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-top: 20px; width: 100%; }
+        .select-premium { padding: 10px; border-radius: 6px; border: 2px solid #ccc; font-size: 1rem; font-weight: bold; max-width: 100%; }
         
         .contenedor-opciones-doble {
             display: none; 
@@ -229,6 +238,8 @@
             border-radius: 8px;
             border: 1px solid #c5e1a5;
             align-items: center;
+            justify-content: center;
+            flex-wrap: wrap;
             gap: 15px;
         }
         
@@ -264,6 +275,90 @@
         
         .lista-dobleros { display: flex; gap: 8px; list-style: none; padding: 0; margin: 10px 0 20px 0; flex-wrap: wrap; }
         .lista-dobleros li { background: #ffe0b2; color: var(--doble-color); padding: 6px 14px; border-radius: 20px; font-weight: bold; font-size: 0.9rem; border: 1px solid #ffb74d; }
+
+        /* 📱 DISEÑO RESPONSIVO EXCLUSIVO PARA MÓVILES Y TABLETS (Pantallas menores de 900px) */
+        @media (max-width: 900px) {
+            body {
+                padding: 12px; /* Márgenes laterales más cómodos en móvil */
+            }
+
+            /* 1. Cabecera centrada en columna */
+            .header-container { 
+                flex-direction: column; 
+                align-items: center;
+                text-align: center;
+                gap: 15px; 
+                margin-bottom: 20px;
+            }
+            .logo-area { 
+                width: 100%; 
+                display: flex;
+                justify-content: center;
+            }
+            .logo-pena { 
+                width: 240px; 
+                max-width: 80%;
+                margin: 0 auto;
+            }
+            .navbar { 
+                width: 100%; 
+                min-height: auto; 
+                padding: 18px 15px; 
+                margin: 0 auto;
+            }
+            .navbar-textos h1 { 
+                font-size: 1.65rem; 
+            }
+            .navbar-textos p {
+                font-size: 1rem;
+            }
+
+            /* 2. Botón de WhatsApp centrado y adaptado */
+            .btn-whatsapp-captura {
+                width: 100%;
+                font-size: 0.95rem;
+                padding: 12px 16px;
+                margin: 0 auto 20px auto;
+            }
+
+            /* 3. Apilamos la columna de partidos y el ranking */
+            .grid-principal { 
+                grid-template-columns: 1fr; 
+                gap: 25px;
+            }
+
+            .bloque-titulo {
+                font-size: 1.05rem;
+                justify-content: center;
+                text-align: center;
+            }
+
+            .contenedor-partidos {
+                padding: 10px;
+            }
+
+            /* 4. Reordenamos cada tarjeta de partido para que quepa sin desbordar */
+            .partido-card {
+                grid-template-columns: 35px 1fr; /* Número a la izquierda, resto a la derecha */
+                padding: 14px;
+                gap: 10px;
+            }
+            .equipos-info {
+                grid-column: 1 / -1; /* Los equipos ocupan todo el ancho */
+                font-size: 1.1rem;
+                text-align: center;
+            }
+            .zona-voto {
+                grid-column: 1 / -1; /* Los botones 1 X 2 se centran abajo */
+                justify-content: center;
+                margin-top: 5px;
+            }
+
+            /* 5. Apilamos las cajas de Convocados y Grada */
+            .zona-convocatoria {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
 </head>
 <body>
@@ -297,8 +392,7 @@
                 </form>
             </div>
 
-            <!-- ⚡ CORRECCIÓN 1: El identificador 'id="area-boleto-captura"' ahora encierra EXCLUSIVAMENTE las 15 casillas -->
-            <div class="contenedor-partidos" id="area-boleto-captura" style="background: var(--primary); padding: 15px;">
+            <div class="contenedor-partidos" id="area-boleto-captura" style="background: var(--primary);">
                 {% for part in partidos %}
                 <div class="partido-card {% if part.num == 15 %}card-pleno{% endif %}" id="card-partido-{{ part.num }}" data-pronostico="{{ part.pronostico }}" data-dobles-firmados="{{ part.dobles|join(',') }}">
                     <div class="partido-num">{{ part.num }}</div>
@@ -334,7 +428,7 @@
                                     </form>
                                 {% endif %}
                             {% else %}
-                                <div style="display:flex; gap:4px;">
+                                <div style="display:flex; gap:6px;">
                                     <button onclick="votarServidor('{{ part.num }}', '1')" id="btn-{{ part.num }}-1" class="btn-premium {% if '1' in part.pronostico %}voto-activo{% endif %}">1</button>
                                     <button onclick="votarServidor('{{ part.num }}', 'X')" id="btn-{{ part.num }}-X" class="btn-premium {% if 'X' in part.pronostico %}voto-activo{% endif %}">X</button>
                                     <button onclick="votarServidor('{{ part.num }}', '2')" id="btn-{{ part.num }}-2" class="btn-premium {% if '2' in part.pronostico %}voto-activo{% endif %}">2</button>
@@ -357,15 +451,14 @@
                 </ul>
 
                 <div style="display:flex; gap:12px; flex-wrap:wrap; border-top: 1px dashed #ccc; padding-top: 15px;">
-                    <select id="select-doblero-nombre" class="select-premium" onchange="actualizarPartidosDisponibles()" required>
+                    <select id="select-doblero-nombre" class="select-premium" style="width: 100%;" onchange="actualizarPartidosDisponibles()" required>
                         <option value="" disabled selected>1º Elige tu nombre...</option>
                         {% for nombre in los_del_doble %}<option value="{{ nombre }}">{{ nombre }}</option> {% endfor %}
                     </select>
                     
-                    <select id="select-doblero-partido" class="select-premium" onchange="mostrarOpcionesDoble()" required>
+                    <select id="select-doblero-partido" class="select-premium" style="width: 100%;" onchange="mostrarOpcionesDoble()" required>
                         <option value="" disabled selected>2º Elige la casilla a doblar...</option>
                         {% for part in partidos if part.num != 15 %}
-                            <!-- Cargamos los partidos. Por JavaScript controlaremos si están bloqueados -->
                             <option value="{{ part.num }}" id="opt-partido-{{ part.num }}">Partido {{ part.num }}: {{ part.local }} vs {{ part.visitante }}</option>
                         {% endfor %}
                     </select>
@@ -421,7 +514,6 @@
     </div>
 
     <script>
-        // Guardar voto por debajo (AJAX) sin saltos
         function votarServidor(partidoNum, signo, callback) {
             let formData = new FormData();
             formData.append('partido_num', partidoNum);
@@ -453,7 +545,6 @@
             });
         }
 
-        // ⚡ CORRECCIÓN 2: Control de la regla del "Último en llegar"
         function actualizarPartidosDisponibles() {
             let nombreElegido = document.getElementById('select-doblero-nombre').value;
             
@@ -462,7 +553,6 @@
                 let option = document.getElementById(`opt-partido-${i}`);
                 let firmados = card.getAttribute('data-dobles-firmados') || '';
                 
-                // Si la casilla ya tiene un doble y NO es el de este peñista, se bloquea (Límite: 1 doble por partido)
                 if (firmados !== '' && !firmados.includes(nombreElegido)) {
                     option.disabled = true;
                     if(!option.text.includes("(AGOTADO)")) option.text += " (AGOTADO)";
@@ -495,14 +585,12 @@
             zonaBotones.style.display = 'flex';
         }
 
-        // ⚡ CORRECCIÓN 3: Rectificar elecciones anteriores borrando el rastro viejo
         function sellarDobleDesdePanel(signoElegido) {
             let nombrePeñista = document.getElementById('select-doblero-nombre').value;
             let partidoNuevoNum = document.getElementById('select-doblero-partido').value;
 
             if (!nombrePeñista) { alert("Por favor, selecciona tu nombre."); return; }
 
-            // Buscamos si este peñista ya tenía un doble firmado en OTRO partido antes
             let partidoViejoNum = null;
             for (let i = 1; i <= 14; i++) {
                 let cardCheck = document.getElementById(`card-partido-${i}`);
@@ -513,11 +601,9 @@
                 }
             }
 
-            // Si ya tenía un doble viejo y es DISTINTO al nuevo, lo borramos de la base de datos primero
             if (partidoViejoNum && partidoViejoNum != partidoNuevoNum) {
                 let fdBorrar = new FormData();
                 fdBorrar.append('partido_num', partidoViejoNum);
-                // Enviamos una petición de limpieza al servidor para desvincular al peñista de la casilla vieja
                 fetch('/guardar_pronostico', { method: 'POST', body: fdBorrar }); 
             }
 
@@ -530,7 +616,6 @@
                 body: formData
             }).then(response => {
                 if (response.ok) {
-                    // Si cambió de partido, limpiamos visualmente la fila vieja arriba
                     if (partidoViejoNum && partidoViejoNum != partidoNuevoNum) {
                         let cardVieja = document.getElementById(`card-partido-${partidoViejoNum}`);
                         cardVieja.setAttribute('data-dobles-firmados', '');
@@ -539,7 +624,6 @@
                         cardVieja.setAttribute('data-pronostico', '-');
                     }
 
-                    // Forzamos el voto del nuevo signo
                     votarServidor(partidoNuevoNum, signoElegido, function() {
                         let cardNueva = document.getElementById(`card-partido-${partidoNuevoNum}`);
                         cardNueva.setAttribute('data-dobles-firmados', nombrePeñista);
@@ -553,7 +637,6 @@
             });
         }
 
-        // Generar captura recortada EXCLUSIVAMENTE de los partidos
         function descargarBoletoWhatsApp() {
             let area = document.getElementById('area-boleto-captura');
             let opciones = {
