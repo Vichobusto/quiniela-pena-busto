@@ -5,7 +5,7 @@ from flask import Flask, render_template, request, redirect, url_for
 
 app = Flask(__name__)
 
-# 🗄️ FUNCIÓN DE CONEXIÓN A LA BASE DE DATOS
+# 🗄️ FUNCIÓN DE CONEXIÓN A LA BASE DE DATOS (Nuestro archivador)
 def conectar_bd():
     conexion = sqlite3.connect("quiniela_pena.db")
     return conexion
@@ -15,17 +15,17 @@ def verificar_y_actualizar_base_datos():
     conexion = conectar_bd()
     cursor = conexion.cursor()
     
-    # 1. Tabla de configuración
+    # 1. Tabla de configuración (Guarda jornada y temporada)
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS configuracion (
         clave TEXT PRIMARY KEY,
         valor INTEGER
     )
     """)
-    cursor.execute("INSERT OR IGNORE INTO configuracion (clave, valor) VALUES ('jornada', 66)")
+    cursor.execute("INSERT OR IGNORE INTO configuracion (clave, valor) VALUES ('jornada', 1)")
     cursor.execute("INSERT OR IGNORE INTO configuracion (clave, valor) VALUES ('temporada', 2026)")
     
-    # 2. Tabla de partidos
+    # 2. Tabla de partidos (Guarda los 15 encuentros del boleto)
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS partidos (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -43,7 +43,7 @@ def verificar_y_actualizar_base_datos():
     )
     """)
     
-    # 3. Tabla de usuarios
+    # 3. Tabla de usuarios (La plantilla oficial)
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS usuarios (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -54,7 +54,7 @@ def verificar_y_actualizar_base_datos():
     )
     """)
     
-    # 🚨 LA PLANTILLA OFICIAL DE TUS 28 PEÑISTAS REALES (MEMORIZADOS)
+    # 🚨 PLANTILLA INALTERABLE DE TUS 28 PEÑISTAS REALES
     cursor.execute("DELETE FROM usuarios")
     peñistas_reales = [
         ("Fabián",), ("Víctor",), ("Vicente",), ("Jose",), ("Orly",), 
@@ -66,24 +66,26 @@ def verificar_y_actualizar_base_datos():
     ]
     cursor.executemany("INSERT INTO usuarios (nombre) VALUES (?)", peñistas_reales)
     
-    # 🛠️ Recreamos los 15 partidos plantilla iniciales para que la web no nazca vacía
-    cursor.execute("DELETE FROM partidos")
-    for i in range(1, 16):
-        if i == 15:
-            cursor.execute("""
-                INSERT INTO partidos (num_partido, local, visitante, division, pronostico, pleno_local, pleno_visitante, doble_por) 
-                VALUES (15, 'Equipo Local 15', 'Equipo Visitante 15', 'PLENO', '-', '-', '-', '')
-            """)
-        else:
-            div_label = "Primera" if i <= 8 else "Segunda"
-            cursor.execute("""
-                INSERT INTO partidos (num_partido, local, visitante, division, pronostico, doble_por) 
-                VALUES (?, 'Equipo Local', 'Equipo Visitante', ?, '-', '')
-            """, (i, div_label))
+    # 🛠️ Creamos los 15 huecos base si la tabla está vacía
+    cursor.execute("SELECT COUNT(*) FROM partidos")
+    if cursor.fetchone()[0] == 0:
+        for i in range(1, 16):
+            if i == 15:
+                cursor.execute("""
+                    INSERT INTO partidos (num_partido, local, visitante, division, pronostico, pleno_local, pleno_visitante, doble_por) 
+                    VALUES (15, 'Equipo Local 15', 'Equipo Visitante 15', 'PLENO', '-', '-', '-', '')
+                """)
+            else:
+                div_label = "Primera" if i <= 8 else "Segunda"
+                cursor.execute("""
+                    INSERT INTO partidos (num_partido, local, visitante, division, pronostico, doble_por) 
+                    VALUES (?, 'Equipo Local', 'Equipo Visitante', ?, '-', '')
+                """, (i, div_label))
     
     conexion.commit()
     conexion.close()
 
+# Arrancamos y verificamos la base de datos al iniciar
 verificar_y_actualizar_base_datos()
 
 
@@ -111,7 +113,6 @@ def inicio():
     for p in partidos_db:
         idx_resp = (p[0] - 1) % len(todos_usuarios) if todos_usuarios else 0
         responsable = todos_usuarios[idx_resp] if todos_usuarios else "Peñista"
-        
         lista_dobles_partido = [p[4]] if (p[4] and p[4] != "") else []
         
         partido = {
@@ -130,24 +131,18 @@ def inicio():
             "pleno_visitante_real": p[10]
         }
         if p[5] and p[5].strip().upper() == "X": partido["pronostico"] = "X"
-        if p[6] and p[6].strip().upper() == "X": partido["resultado_real"] = "X"
         partidos_limpios.append(partido)
     
     cursor.execute("SELECT nombre, aciertos, errores FROM usuarios ORDER BY aciertos DESC, nombre ASC")
     usuarios_db = cursor.fetchall()
-    peñistas_lista = []
-    for u in usuarios_db:
-        peñistas_lista.append({
-            "nombre": u[0],
-            "aciertos": u[1],
-            "errores": u[2]
-        })
+    peñistas_lista = [{"nombre": u[0], "aciertos": u[1], "errores": u[2]} for u in usuarios_db]
     
     conexion.close()
     
+    # Los 5 encargados de los dobles semanales
     los_del_doble = todos_usuarios[0:5] if len(todos_usuarios) >= 5 else todos_usuarios
-    conjunto_dobles = los_del_doble
     
+    # 20 convocados y 8 en la grada
     convocados = [{"nombre": name, "partidos": 10} for name in todos_usuarios[:20]]
     descansan = [{"nombre": name, "partidos": 8} for name in todos_usuarios[20:]]
     
@@ -156,11 +151,11 @@ def inicio():
         partidos=partidos_limpios, 
         peñistas=peñistas_lista,          
         los_del_doble=los_del_doble,      
-        conjunto_dobles=conjunto_dobles,  
+        conjunto_dobles=los_del_doble,  
         convocados=convocados,            
         descansan=descansan,              
         jornada_viendo=jornada_viendo, 
-        jornadas_disponibles=[64, 65, 66],
+        jornadas_disponibles=[1, 2, 3, jornada_activa],
         temporada=temporada,
         es_pasado=False
     )
@@ -201,70 +196,77 @@ def guardar_pronostico():
     return redirect(url_for("inicio"))
 
 
-# 🤖 EL ROBOT MEJORADO Y BLINDADO CONTRA CAMBIOS DE TEXTO
+# 🤖 EL NUEVO ROBOT CONECTADO A LA API OFICIAL DE FOOTBALL-DATA
 def clonar_quiniela_oficial():
-    url = "https://www.loteriasyapuestas.es/servicios/feeder/BoletosFormularioFeeder?gameId=LAQU"
+    # 🔑 ¡ATENCIÓN! Pega aquí dentro tu código secreto del correo entre las comillas
+    MI_API_TOKEN = 'f9a7f0df4c834ad2bfaacc3a9997ed8f'
+    
+    # Pedimos los próximos partidos programados de Primera División (PD) y Champions (CL) para llenar los 15 huecos
+    url = "https://api.football-data.org/v4/matches?competitions=PD,CL&status=SCHEDULED,TIMED"
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        'X-Auth-Token': MI_API_TOKEN
     }
+    
     try:
         respuesta = requests.get(url, headers=headers, timeout=12)
-        if respuesta.status_code != 200: return False, f"Error HTTP {respuesta.status_code}"
-        datos = respuesta.json()
-        if not datos or len(datos) == 0 or 'filas' not in datos[0]: return False, "JSON sin partidos."
         
-        jornada_api = datos[0].get('jornada', '66')
-        lista_partidos = datos[0]['filas']
+        if respuesta.status_code != 200:
+            print(f"❌ [ERROR API]: Football-Data respondió con código {respuesta.status_code} - {respuesta.text}")
+            return False, f"Error HTTP {respuesta.status_code}"
+            
+        datos = respuesta.json()
+        lista_partidos = datos.get('matches', [])
+        
+        if len(lista_partidos) == 0:
+            print("⚠️ [AVISO API]: No hay partidos programados próximamente en estas competiciones.")
+            return False, "Sin partidos programados."
+            
+        # Sacamos el número de jornada del primer partido que nos llega
+        jornada_api = lista_partidos[0].get('matchday', 1)
         
         conexion = conectar_bd()
         cursor = conexion.cursor()
-        
-        # Guardamos el número oficial de jornada que dicta el Estado
         cursor.execute("UPDATE configuracion SET valor = ? WHERE clave = 'jornada'", (jornada_api,))
-        
-        # Limpiamos los 15 partidos de la base de datos para meter los nuevos auténticos
         cursor.execute("DELETE FROM partidos")
         
         contador = 1
         for p in lista_partidos:
-            texto_partido = p.get('texto', '')
+            # Extraemos los nombres limpios de los equipos desde el JSON oficial
+            local = p['homeTeam'].get('shortName') or p['homeTeam'].get('name', 'Local')
+            visitante = p['awayTeam'].get('shortName') or p['awayTeam'].get('name', 'Visitante')
             
-            # Algoritmo flexible para separar el equipo local del visitante pase lo que pase
-            if " - " in texto_partido:
-                local, visitante = texto_partido.split(" - ", 1)
-            elif "-" in texto_partido:
-                local, visitante = texto_partido.split("-", 1)
-            else:
-                local, visitante = texto_partido, "Pendiente"
-            
-            # Determinamos la etiqueta visual según el número de la casilla
-            div_label = "Primera" if contador <= 8 else "Segunda" if contador <= 14 else "PLENO"
+            # Etiquetamos la competición
+            competicion = p['competition'].get('code', 'PD')
+            div_label = "Primera" if competicion == "PD" else "PLENO" if contador == 15 else "Segunda"
             
             if contador <= 14:
                 cursor.execute("""
                     INSERT INTO partidos (num_partido, local, visitante, division, pronostico) 
                     VALUES (?, ?, ?, ?, '-')
-                """, (contador, local.strip(), visitante.strip(), div_label))
+                """, (contador, local, visitante, div_label))
             elif contador == 15:
                 cursor.execute("""
                     INSERT INTO partidos (num_partido, local, visitante, division, pronostico, pleno_local, pleno_visitante) 
-                    VALUES (15, ?, ?, ?, '-', '-', '-')
-                """, (local.strip(), visitante.strip(), div_label))
+                    VALUES (15, ?, ?, 'PLENO', '-', '-', '-')
+                """, (local, visitante))
                 
             contador += 1
-            if contador > 15: break  # Nos aseguramos de parar estrictamente en el partido 15
+            if contador > 15:
+                break # Paramos exactamente al llegar al partido 15
                 
         conexion.commit()
         conexion.close()
-        return True, f"¡Jornada {jornada_api} importada con éxito total!"
+        print(f"✅ [ÉXITO API]: ¡Se han importado {contador - 1} partidos reales de la Jornada {jornada_api}!")
+        return True, f"¡Jornada {jornada_api} cargada con éxito!"
+        
     except Exception as e:
-        return False, f"Error en el procesado: {str(e)}"
+        print(f"💥 [FALLO CRÍTICO API]: {str(e)}")
+        return False, f"Error técnico: {str(e)}"
 
 
 @app.route("/admin/clonar_oficial", methods=["POST"])
 def admin_clonar_oficial():
     exito, mensaje = clonar_quiniela_oficial()
-    print(f"🤖 [Consola de Render]: {mensaje}")
     return redirect("/admin")
 
 @app.route("/asignar_doble", methods=["POST"])
