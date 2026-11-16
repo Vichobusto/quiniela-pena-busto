@@ -291,7 +291,61 @@ def reiniciar_temporada():
     conexion.commit()
     conexion.close()
     return redirect("/admin")
-
+# 📋 RUTA NUEVA: ESCÁNER INTELIGENTE PARA PEGAR EL BOLETO OFICIAL EN 5 SEGUNDOS
+@app.route("/admin/pegar_boleto", methods=["POST"])
+def pegar_boleto():
+    # Recogemos el texto completo que has pegado en el cuadro del formulario
+    texto_bruto = request.form.get("texto_partidos", "")
+    
+    # Dividimos el texto línea por línea (cada partido es una línea)
+    lineas = texto_bruto.strip().split("\n")
+    
+    conexion = conectar_bd()
+    cursor = conexion.cursor()
+    
+    # Vaciamos los partidos viejos para meter los 15 nuevos exactos
+    cursor.execute("DELETE FROM partidos")
+    
+    contador = 1
+    for linea in lineas:
+        linea_limpia = linea.strip()
+        if not linea_limpia:
+            continue # Si hay una línea en blanco, la saltamos
+            
+        # Buscamos el guion que separa al equipo local del visitante
+        if " - " in linea_limpia:
+            local, visitante = linea_limpia.split(" - ", 1)
+        elif "-" in linea_limpia:
+            local, visitante = linea_limpia.split("-", 1)
+        else:
+            # Si viene sin guion (ej. separado por tabulador), lo dividimos por la mitad
+            local, visitante = linea_limpia, "Visitante"
+            
+        # Quitamos posibles números delante del nombre (ej: "1. Real Madrid" -> "Real Madrid")
+        local = local.lstrip("0123456789.-) ").strip()
+        visitante = visitante.strip()
+        
+        # Asignamos la etiqueta de división según el número de casilla
+        if contador <= 14:
+            div_label = "Primera" if contador <= 8 else "Segunda / Fem"
+            cursor.execute("""
+                INSERT INTO partidos (num_partido, local, visitante, division, pronostico) 
+                VALUES (?, ?, ?, ?, '-')
+            """, (contador, local, visitante, div_label))
+        elif contador == 15:
+            cursor.execute("""
+                INSERT INTO partidos (num_partido, local, visitante, division, pronostico, pleno_local, pleno_visitante) 
+                VALUES (15, ?, ?, 'PLENO', '-', '-', '-')
+            """, (local, visitante))
+            
+        contador += 1
+        if contador > 15:
+            break # En cuanto llegamos al partido 15, paramos de leer
+            
+    conexion.commit()
+    conexion.close()
+    print(f"✅ [ESCÁNER]: Se han cargado {contador - 1} partidos exactos pegados por el presidente.")
+    return redirect("/admin")
 if __name__ == "__main__":
     puerto = int(os.environ.get("PORT", 5000))
     print(f"🖥️ Motor de la Peña Busto encendido con éxito en el puerto {puerto}...")

@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Panel Administrator - Peña Busto</title>
     <style>
+        /* 🎨 ESTILOS VISUALES (La pintura y decoración del despacho) */
         :root {
             --admin-color: #b71c1c;
             --admin-dark: #7f0000;
@@ -40,6 +41,7 @@
         <h1>⚙️ DESPACHO DE ADMINISTRACIÓN MASTER</h1>
         <p class="sub">Temporada Activa {{ temporada }} — JORNADA DE TRABAJO REAL: Nº {{ jornada }}</p>
         
+        <!-- BLOQUE 1: MARCAR RESULTADOS REALES -->
         <div class="bloque">
             <h2>📊 1. INTRODUCIR RESULTADOS OFICIALES DE LA TELEVISIÓN (1X2)</h2>
             {% for part in partidos %}
@@ -48,6 +50,7 @@
                 <span style="flex: 1; font-weight: 700; font-size: 1.05rem;">{{ part[1] }} vs {{ part[2] }}</span>
                 
                 {% if part[0] == 15 %}
+                    <!-- Formulario especial para los goles del Pleno al 15 -->
                     <form action="/admin/marcar_resultado" method="POST" style="display: flex; align-items: center; gap: 6px;">
                         <input type="hidden" name="partido_num" value="15">
                         <select name="goles_l_real">
@@ -66,6 +69,7 @@
                         <button type="submit" class="btn-signo {% if part[5] != '-' %}marcado-p15{% endif %}">💾</button>
                     </form>
                 {% else %}
+                    <!-- Botones rápidos 1, X, 2 para los primeros 14 partidos -->
                     <form action="/admin/marcar_resultado" method="POST" style="display: flex; gap: 6px;">
                         <input type="hidden" name="partido_num" value="{{ part[0] }}">
                         <button type="submit" name="signo_real" value="1" class="btn-signo {% if part[4]=='1' %}marcado{% endif %}">1</button>
@@ -77,18 +81,29 @@
             {% endfor %}
         </div>
 
+        <!-- 📋 BLOQUE 1.B: EL NUEVO ESCÁNER DE PEGADO RÁPIDO (Nuestro buzón inteligente) -->
         <div class="bloque" style="background-color: #e8f5e9; border: 2px dashed #2e7d32;">
-            <h2 style="color: #2e7d32; border-color: #2e7d32;">🤖 1.B CLONAR JORNADA AUTOMÁTICAMENTE</h2>
-            <p style="font-size: 0.9rem; margin-bottom: 15px; color: #388e3c; font-weight: 600;">
-                ¿No quieres escribir los nombres de los equipos a mano? El robot viajará a la web oficial de Loterías del Estado y te configurará el boleto en un segundo.
+            <h2 style="color: #2e7d32; border-color: #2e7d32;">📋 1.B PEGAR BOLETO OFICIAL (15 PARTIDOS)</h2>
+            <p style="font-size: 0.9rem; margin-bottom: 12px; color: #388e3c; font-weight: 600;">
+                Copia los 15 partidos de cualquier web deportiva (incluyendo Segunda o Liga F), pégalos aquí abajo (un partido por línea, ej: <em>Real Madrid - Barcelona</em>) y pulsa el botón:
             </p>
-            <form action="/admin/clonar_oficial" method="POST">
+            
+            <!-- Conecta directamente con @app.route("/admin/pegar_boleto") en app.py -->
+            <form action="/admin/pegar_boleto" method="POST">
+                <textarea 
+                    name="texto_partidos" 
+                    rows="8" 
+                    placeholder="1. Real Madrid - Barcelona&#10;2. Atlético - Sevilla&#10;3. Barça Fem - Real Sociedad Fem&#10;..." 
+                    style="width: 100%; padding: 12px; border: 2px solid #81c784; border-radius: 8px; font-family: 'Segoe UI', sans-serif; font-size: 0.95rem; box-sizing: border-box; margin-bottom: 10px; resize: vertical;"
+                    required></textarea>
+                
                 <button type="submit" class="btn-accion" style="background: linear-gradient(135deg, #2e7d32, #1b5e20); margin-top: 0;">
-                    🔄 Sincronizar y Traer Equipos Oficiales
+                    📥 Cargar los 15 Partidos Pegados al Boleto
                 </button>
             </form>
         </div>
 
+        <!-- BLOQUE 2: EDICIÓN MANUAL INDIVIDUAL -->
         <div class="bloque">
             <h2>📝 2. REDEFINIR PRÓXIMA JORNADA (Manual o Entre Semana)</h2>
             <form action="/admin/guardar_partidos" method="POST">
@@ -110,14 +125,16 @@
             </form>
         </div>
 
+        <!-- BLOQUE 3: CIERRE Y REPARTO DE PUNTOS -->
         <div class="bloque" style="background-color: #fff3e0; border-color: #ffb300;">
             <h2 style="color: #e65100; border-color: #ffb300;">🔒 3. EJECUTAR ESCRUTINIO Y AVANZAR SEMANA</h2>
-            <p style="font-size: 0.9rem; margin-bottom: 15px; color: #555;">Calcula al instante el reparto de aciertos, actualiza la tabla de posiciones general de la peña, archiva el fin de semana y activa el robot de internet.</p>
+            <p style="font-size: 0.9rem; margin-bottom: 15px; color: #555;">Calcula al instante el reparto de aciertos, actualiza la tabla de posiciones general de la peña y archiva el fin de semana.</p>
             <form action="/admin/cerrar_jornada" method="POST">
                 <button type="submit" class="btn-accion btn-cerrar">🔒 Archivar y Calcular Puntos de la Jornada</button>
             </form>
         </div>
 
+        <!-- BLOQUE 4: RESETEO DE TEMPORADA -->
         <div class="bloque" style="background-color: #ffebee; border-color: #ef9a9a;">
             <h2 style="color: #c62828; border-color: #ef9a9a;">🚨 4. REINICIO MAESTRO DE LA TEMPORADA</h2>
             <p style="font-size: 0.9rem; margin-bottom: 15px; color: #555;">Pone a cero absoluto los marcadores de aciertos y errores de todos los usuarios de la base de datos para arrancar un nuevo año deportivo.</p>
