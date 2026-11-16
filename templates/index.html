@@ -610,6 +610,7 @@
             let formData = new FormData();
             formData.append('peñista', nombrePeñista);
             formData.append('partido', partidoNuevoNum);
+            formData.append('signo_doble', signoElegido);
 
             fetch('/asignar_doble', {
                 method: 'POST',

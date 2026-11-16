@@ -1,22 +1,20 @@
 import os
 import sqlite3
-import requests
 from flask import Flask, render_template, request, redirect, url_for
 
 app = Flask(__name__)
 
-# 🗄️ FUNCIÓN DE CONEXIÓN A LA BASE DE DATOS (Nuestro archivador de metal)
+# 🗄️ CONEXIÓN AL ARCHIVADOR (Base de datos SQLite)
 def conectar_bd():
-    conexion = sqlite3.connect("quiniela_pena.db")
-    return conexion
+    return sqlite3.connect("quiniela_pena.db")
 
 
-# 🏗️ VERIFICACIÓN Y CONFIGURACIÓN INICIAL DE LA BASE DE DATOS
+# 🏗️ VERIFICACIÓN Y ACTUALIZACIÓN SEGURA DE TABLAS
 def verificar_y_actualizar_base_datos():
     conexion = conectar_bd()
     cursor = conexion.cursor()
     
-    # 1. Tabla de configuración (Guarda jornada y temporada actual)
+    # 1. Tabla de configuración
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS configuracion (
         clave TEXT PRIMARY KEY,
@@ -26,7 +24,7 @@ def verificar_y_actualizar_base_datos():
     cursor.execute("INSERT OR IGNORE INTO configuracion (clave, valor) VALUES ('jornada', 1)")
     cursor.execute("INSERT OR IGNORE INTO configuracion (clave, valor) VALUES ('temporada', 2026)")
     
-    # 2. Tabla de partidos (Guarda los 15 encuentros del boleto)
+    # 2. Tabla de partidos (Incluye 'signo_doble' para saber exactamente qué signo firmó el del doble)
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS partidos (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -35,6 +33,7 @@ def verificar_y_actualizar_base_datos():
         visitante TEXT NOT NULL,
         division TEXT NOT NULL,
         doble_por TEXT DEFAULT '',
+        signo_doble TEXT DEFAULT '',
         pronostico TEXT DEFAULT '-',      
         pleno_local TEXT DEFAULT '-',     
         pleno_visitante TEXT DEFAULT '-',
@@ -44,7 +43,13 @@ def verificar_y_actualizar_base_datos():
     )
     """)
     
-    # 3. Tabla de usuarios (La plantilla oficial de la peña)
+    # Migración segura: si tu base de datos antigua aún no tiene 'signo_doble', la añadimos sin borrar datos
+    cursor.execute("PRAGMA table_info(partidos)")
+    columnas_partidos = [col[1] for col in cursor.fetchall()]
+    if "signo_doble" not in columnas_partidos:
+        cursor.execute("ALTER TABLE partidos ADD COLUMN signo_doble TEXT DEFAULT ''")
+    
+    # 3. Tabla de usuarios (Guarda aciertos, errores y el contador equitativo 'partidos_asignados')
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS usuarios (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -55,8 +60,7 @@ def verificar_y_actualizar_base_datos():
     )
     """)
     
-    # 🛡️ BLINDAJE DE DATOS: Solo insertamos los 28 peñistas si la tabla está vacía.
-    # Así evitamos borrar los puntos manuales o acumulados cuando el servidor se reinicie.
+    # 🛡️ BLINDAJE: Solo creamos los 28 peñistas si la tabla está vacía
     cursor.execute("SELECT COUNT(*) FROM usuarios")
     if cursor.fetchone()[0] == 0:
         peñistas_reales = [
@@ -75,22 +79,42 @@ def verificar_y_actualizar_base_datos():
         for i in range(1, 16):
             if i == 15:
                 cursor.execute("""
-                    INSERT INTO partidos (num_partido, local, visitante, division, pronostico, pleno_local, pleno_visitante, doble_por) 
-                    VALUES (15, 'Equipo Local 15', 'Equipo Visitante 15', 'PLENO', '-', '-', '-', '')
+                    INSERT INTO partidos (num_partido, local, visitante, division, pronostico, pleno_local, pleno_visitante, doble_por, signo_doble) 
+                    VALUES (15, 'Equipo Local 15', 'Equipo Visitante 15', 'PLENO', '-', '-', '-', '', '')
                 """)
             else:
                 div_label = "Primera" if i <= 8 else "Segunda"
                 cursor.execute("""
-                    INSERT INTO partidos (num_partido, local, visitante, division, pronostico, doble_por) 
-                    VALUES (?, 'Equipo Local', 'Equipo Visitante', ?, '-', '')
+                    INSERT INTO partidos (num_partido, local, visitante, division, pronostico, doble_por, signo_doble) 
+                    VALUES (?, 'Equipo Local', 'Equipo Visitante', ?, '-', '', '')
                 """, (i, div_label))
     
     conexion.commit()
     conexion.close()
 
 
-# Arrancamos y verificamos la base de datos al iniciar la aplicación
 verificar_y_actualizar_base_datos()
+
+
+# ⚖️ FUNCIÓN MAESTRA DE REPARTO EQUITATIVO (Nadie repite en el mismo boleto)
+def obtener_reparto_equitativo(cursor):
+    # Ordenamos a los 28 peñistas de MENOR a MAYOR número de partidos jugados en el año
+    cursor.execute("SELECT nombre, partidos_asignados FROM usuarios ORDER BY partidos_asignados ASC, id ASC")
+    lista_ordenada = cursor.fetchall()
+    
+    # Reparto sin repeticiones:
+    # - Puestos 0 al 13 (14 socios): Titulares de los partidos 1 al 14
+    # - Puestos 14 al 18 (5 socios): Encargados de los 5 dobles
+    # - Puesto 19 (1 socio): Encargado del Pleno al 15
+    # - Puestos 20 al 27 (8 socios): Descansan en la grada
+    titulares_14 = [u[0] for u in lista_ordenada[:14]]
+    dobleros_5 = [u[0] for u in lista_ordenada[14:19]]
+    pleno_15_resp = lista_ordenada[19][0] if len(lista_ordenada) > 19 else lista_ordenada[0][0]
+    
+    convocados_20 = [{"nombre": u[0], "partidos": u[1]} for u in lista_ordenada[:20]]
+    descansan_8 = [{"nombre": u[0], "partidos": u[1]} for u in lista_ordenada[20:]]
+    
+    return titulares_14, dobleros_5, pleno_15_resp, convocados_20, descansan_8
 
 
 # 🏠 RUTA PÚBLICA: PORTADA DE LA PEÑA
@@ -107,24 +131,28 @@ def inicio():
     cursor.execute("SELECT valor FROM configuracion WHERE clave = 'temporada'")
     temporada = cursor.fetchone()[0]
     
+    # Obtenemos el reparto equitativo actual
+    titulares_14, dobleros_5, pleno_15_resp, convocados_20, descansan_8 = obtener_reparto_equitativo(cursor)
+    
     cursor.execute("""
         SELECT num_partido, local, visitante, division, doble_por, pronostico, 
-               resultado_real, pleno_local, pleno_visitante, pleno_local_real, pleno_visitante_real 
+               resultado_real, pleno_local, pleno_visitante, pleno_local_real, pleno_visitante_real, signo_doble
         FROM partidos ORDER BY num_partido ASC
     """)
     partidos_db = cursor.fetchall()
     
-    cursor.execute("SELECT nombre FROM usuarios ORDER BY id ASC")
-    todos_usuarios = [u[0] for u in cursor.fetchall()]
-    
     partidos_limpios = []
     for p in partidos_db:
-        idx_resp = (p[0] - 1) % len(todos_usuarios) if todos_usuarios else 0
-        responsable = todos_usuarios[idx_resp] if todos_usuarios else "Peñista"
+        num = p[0]
+        if num <= 14:
+            responsable = titulares_14[num - 1]
+        else:
+            responsable = pleno_15_resp
+            
         lista_dobles_partido = [p[4]] if (p[4] and p[4] != "") else []
         
         partido = {
-            "num": p[0],
+            "num": num,
             "local": p[1],
             "visitante": p[2],
             "division": p[3],
@@ -136,34 +164,28 @@ def inicio():
             "pleno_local": p[7],
             "pleno_visitante": p[8],
             "pleno_local_real": p[9],
-            "pleno_visitante_real": p[10]
+            "pleno_visitante_real": p[10],
+            "signo_doble": p[11]
         }
         if p[5] and p[5].strip().upper() == "X":
             partido["pronostico"] = "X"
         partidos_limpios.append(partido)
     
-    # Ordenamos el ranking por mayor número de aciertos y, en caso de empate, alfabéticamente
+    # Ranking ordenado por aciertos (descendente) y errores (ascendente)
     cursor.execute("SELECT nombre, aciertos, errores FROM usuarios ORDER BY aciertos DESC, errores ASC, nombre ASC")
     usuarios_db = cursor.fetchall()
     peñistas_lista = [{"nombre": u[0], "aciertos": u[1], "errores": u[2]} for u in usuarios_db]
     
     conexion.close()
     
-    # Los 5 encargados de los dobles semanales
-    los_del_doble = todos_usuarios[0:5] if len(todos_usuarios) >= 5 else todos_usuarios
-    
-    # 20 convocados y 8 en la grada
-    convocados = [{"nombre": name, "partidos": 10} for name in todos_usuarios[:20]]
-    descansan = [{"nombre": name, "partidos": 8} for name in todos_usuarios[20:]]
-    
     return render_template(
         "index.html", 
         partidos=partidos_limpios, 
         peñistas=peñistas_lista,          
-        los_del_doble=los_del_doble,      
-        conjunto_dobles=los_del_doble,  
-        convocados=convocados,            
-        descansan=descansan,              
+        los_del_doble=dobleros_5,      
+        conjunto_dobles=dobleros_5,  
+        convocados=convocados_20,            
+        descansan=descansan_8,              
         jornada_viendo=jornada_viendo, 
         jornadas_disponibles=[1, 2, 3, jornada_activa],
         temporada=temporada,
@@ -189,7 +211,6 @@ def admin_panel():
     """)
     partidos = cursor.fetchall()
     
-    # Cargamos los 28 peñistas para poder editar sus puntos manualmente en el Bloque 3.B
     cursor.execute("SELECT id, nombre, aciertos, errores FROM usuarios ORDER BY nombre ASC")
     usuarios = cursor.fetchall()
     
@@ -197,7 +218,7 @@ def admin_panel():
     return render_template("admin.html", partidos=partidos, jornada=jornada, temporada=temporada, usuarios=usuarios)
 
 
-# 💾 RUTA PARA GUARDAR LOS PRONÓSTICOS DEL BOLETO DESDE LA PORTADA
+# 💾 GUARDAR PRONÓSTICO DESDE LA PORTADA
 @app.route("/guardar_pronostico", methods=["POST"])
 def guardar_pronostico():
     num_partido = request.form.get("partido_num")
@@ -212,9 +233,8 @@ def guardar_pronostico():
         """, (request.form.get("goles_local"), request.form.get("goles_visitante")))
     else:
         sig = request.form.get("signo")
-        # Si no viene signo (petición de limpieza de un doble anterior), reseteamos la casilla
         if not sig:
-            cursor.execute("UPDATE partidos SET pronostico = '-', doble_por = '' WHERE num_partido = ?", (num_partido,))
+            cursor.execute("UPDATE partidos SET pronostico = '-', doble_por = '', signo_doble = '' WHERE num_partido = ?", (num_partido,))
         else:
             if sig.strip().upper() == "X":
                 sig = "X"
@@ -228,20 +248,22 @@ def guardar_pronostico():
     return redirect(url_for("inicio"))
 
 
-# 🔥 RUTA PARA FIRMAR UN DOBLE EN UN PARTIDO
+# 🔥 GUARDAR FIRMA Y SIGNO EXACTO DEL DOBLE
 @app.route("/asignar_doble", methods=["POST"])
 def asignar_doble():
     peñista = request.form.get("peñista")
     partido = request.form.get("partido")
+    signo_doble = request.form.get("signo_doble", "")
+    
     conexion = conectar_bd()
     cursor = conexion.cursor()
-    cursor.execute("UPDATE partidos SET doble_por = ? WHERE num_partido = ?", (peñista, partido))
+    cursor.execute("UPDATE partidos SET doble_por = ?, signo_doble = ? WHERE num_partido = ?", (peñista, signo_doble, partido))
     conexion.commit()
     conexion.close()
     return "OK", 200
 
 
-# 📋 RUTA ESCÁNER INTELIGENTE: PEGAR LOS 15 PARTIDOS OFICIALES EN 5 SEGUNDOS
+# 📋 ESCÁNER INTELIGENTE DE BOLETO (Pegar 15 partidos)
 @app.route("/admin/pegar_boleto", methods=["POST"])
 def pegar_boleto():
     texto_bruto = request.form.get("texto_partidos", "")
@@ -270,13 +292,13 @@ def pegar_boleto():
         if contador <= 14:
             div_label = "Primera" if contador <= 8 else "Segunda / Fem"
             cursor.execute("""
-                INSERT INTO partidos (num_partido, local, visitante, division, pronostico) 
-                VALUES (?, ?, ?, ?, '-')
+                INSERT INTO partidos (num_partido, local, visitante, division, pronostico, doble_por, signo_doble) 
+                VALUES (?, ?, ?, ?, '-', '', '')
             """, (contador, local, visitante, div_label))
         elif contador == 15:
             cursor.execute("""
-                INSERT INTO partidos (num_partido, local, visitante, division, pronostico, pleno_local, pleno_visitante) 
-                VALUES (15, ?, ?, 'PLENO', '-', '-', '-')
+                INSERT INTO partidos (num_partido, local, visitante, division, pronostico, pleno_local, pleno_visitante, doble_por, signo_doble) 
+                VALUES (15, ?, ?, 'PLENO', '-', '-', '-', '', '')
             """, (local, visitante))
             
         contador += 1
@@ -285,11 +307,10 @@ def pegar_boleto():
             
     conexion.commit()
     conexion.close()
-    print(f"✅ [ESCÁNER]: Se han cargado {contador - 1} partidos exactos pegados por el presidente.")
     return redirect("/admin")
 
 
-# 📝 RUTA PARA GUARDAR EDICIÓN MANUAL DE PARTIDOS Y Nº DE JORNADA (Bloque 2 de /admin)
+# 📝 GUARDAR EDICIÓN MANUAL DE PARTIDOS (Bloque 2 de /admin)
 @app.route("/admin/guardar_partidos", methods=["POST"])
 def guardar_partidos():
     num_jornada = request.form.get("num_jornada_oficial", type=int, default=1)
@@ -304,7 +325,7 @@ def guardar_partidos():
         if local and visitante:
             cursor.execute("""
                 UPDATE partidos 
-                SET local = ?, visitante = ?, pronostico = '-', doble_por = '', resultado_real = '-', pleno_local = '-', pleno_visitante = '-', pleno_local_real = '-', pleno_visitante_real = '-'
+                SET local = ?, visitante = ?, pronostico = '-', doble_por = '', signo_doble = '', resultado_real = '-', pleno_local = '-', pleno_visitante = '-', pleno_local_real = '-', pleno_visitante_real = '-'
                 WHERE num_partido = ?
             """, (local, visitante, i))
             
@@ -313,7 +334,7 @@ def guardar_partidos():
     return redirect("/admin")
 
 
-# 🎯 RUTA PARA MARCAR EL RESULTADO REAL DE CADA PARTIDO (1, X, 2 o goles del Pleno)
+# 🎯 MARCAR RESULTADO REAL DE LA TELEVISIÓN (Bloque 1 de /admin)
 @app.route("/admin/marcar_resultado", methods=["POST"])
 def marcar_resultado():
     num_partido = request.form.get("partido_num")
@@ -341,17 +362,18 @@ def marcar_resultado():
     return redirect("/admin")
 
 
-# 🏆 RUTA PARA CALCULAR ACIERTOS Y ACTUALIZAR LA CLASIFICACIÓN AUTOMÁTICAMENTE (Bloque 3)
+# 🏆 ESCRUTINIO INDIVIDUAL EXACTO Y ROTACIÓN EQUITATIVA (Bloque 3 de /admin)
 @app.route("/admin/cerrar_jornada", methods=["POST"])
 def cerrar_jornada():
     conexion = conectar_bd()
     cursor = conexion.cursor()
     
-    cursor.execute("SELECT nombre FROM usuarios ORDER BY id ASC")
-    todos_usuarios = [u[0] for u in cursor.fetchall()]
+    # 1. Obtenemos quiénes eran los 20 convocados de esta jornada según el reparto equitativo
+    titulares_14, dobleros_5, pleno_15_resp, convocados_20, _ = obtener_reparto_equitativo(cursor)
     
+    # 2. Revisamos los 14 partidos evaluables
     cursor.execute("""
-        SELECT num_partido, pronostico, resultado_real, doble_por 
+        SELECT num_partido, pronostico, resultado_real, doble_por, signo_doble 
         FROM partidos 
         WHERE num_partido <= 14 
         ORDER BY num_partido ASC
@@ -362,30 +384,51 @@ def cerrar_jornada():
         num = p[0]
         pronostico_pena = p[1] or "-"
         resultado_tele = p[2] or "-"
-        quien_puso_doble = p[3] or ""
+        quien_doble = p[3] or ""
+        signo_del_doble = p[4] or ""
         
         if resultado_tele == "-":
             continue
             
-        idx_resp = (num - 1) % len(todos_usuarios)
-        titular = todos_usuarios[idx_resp]
+        titular = titulares_14[num - 1]
         
-        if resultado_tele in pronostico_pena:
-            cursor.execute("UPDATE usuarios SET aciertos = aciertos + 1 WHERE nombre = ?", (titular,))
-            if quien_puso_doble and quien_puso_doble != titular:
-                cursor.execute("UPDATE usuarios SET aciertos = aciertos + 1 WHERE nombre = ?", (quien_puso_doble,))
+        # Caso 1: Este partido tiene un DOBLE firmado por otro compañero
+        if quien_doble and signo_del_doble:
+            # Deducimos cuál era el signo original del titular quitando el signo del doble
+            signo_titular = pronostico_pena.replace(signo_del_doble, "")
+            
+            # Evaluamos al TITULAR por su signo individual
+            if resultado_tele == signo_titular:
+                cursor.execute("UPDATE usuarios SET aciertos = aciertos + 1 WHERE nombre = ?", (titular,))
+            else:
+                cursor.execute("UPDATE usuarios SET errores = errores + 1 WHERE nombre = ?", (titular,))
+                
+            # Evaluamos al DEL DOBLE por su signo individual
+            if resultado_tele == signo_del_doble:
+                cursor.execute("UPDATE usuarios SET aciertos = aciertos + 1 WHERE nombre = ?", (quien_doble,))
+            else:
+                cursor.execute("UPDATE usuarios SET errores = errores + 1 WHERE nombre = ?", (quien_doble,))
+                
+        # Caso 2: Partido simple (solo juega el titular)
         else:
-            cursor.execute("UPDATE usuarios SET errores = errores + 1 WHERE nombre = ?", (titular,))
-            if quien_puso_doble and quien_puso_doble != titular:
-                cursor.execute("UPDATE usuarios SET errores = errores + 1 WHERE nombre = ?", (quien_puso_doble,))
+            if resultado_tele in pronostico_pena:
+                cursor.execute("UPDATE usuarios SET aciertos = aciertos + 1 WHERE nombre = ?", (titular,))
+            else:
+                cursor.execute("UPDATE usuarios SET errores = errores + 1 WHERE nombre = ?", (titular,))
+
+    # 3. Sumamos +1 partido asignado a los 20 convocados de esta semana para que roten la próxima jornada
+    for c in convocados_20:
+        cursor.execute("UPDATE usuarios SET partidos_asignados = partidos_asignados + 1 WHERE nombre = ?", (c["nombre"],))
+
+    # 4. Avanzamos el número de jornada activa en +1
+    cursor.execute("UPDATE configuracion SET valor = valor + 1 WHERE clave = 'jornada'")
 
     conexion.commit()
     conexion.close()
-    print("🏆 [ESCRUTINIO]: ¡Clasificación de la Peña Busto actualizada con éxito!")
     return redirect("/")
 
 
-# ✍️ RUTA PARA AJUSTAR ACIERTOS Y ERRORES MANUALMENTE (Bloque 3.B de /admin)
+# ✍️ AJUSTE MANUAL DE CLASIFICACIÓN (Bloque 3.B de /admin)
 @app.route("/admin/guardar_clasificacion_manual", methods=["POST"])
 def guardar_clasificacion_manual():
     conexion = conectar_bd()
@@ -406,11 +449,10 @@ def guardar_clasificacion_manual():
         
     conexion.commit()
     conexion.close()
-    print("✅ [ADMIN]: Clasificación manual actualizada correctamente.")
     return redirect("/admin")
 
 
-# 🚨 RUTA DE REINICIO MAESTRO DE TEMPORADA (Bloque 4 de /admin)
+# 🚨 REINICIO MAESTRO DE TEMPORADA (Bloque 4 de /admin)
 @app.route("/admin/reiniciar_temporada", methods=["POST"])
 def reiniciar_temporada():
     conexion = conectar_bd()
