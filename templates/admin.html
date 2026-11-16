@@ -146,4 +146,56 @@
         <!-- BLOQUE 3: CIERRE Y REPARTO DE PUNTOS AUTOMÁTICO -->
         <div class="bloque" style="background-color: #fff3e0; border-color: #ffb300;">
             <h2 style="color: #e65100; border-color: #ffb300;">🔒 3. EJECUTAR ESCRUTINIO Y AVANZAR SEMANA</h2>
-            <p style="font-size: 0.9rem; margin-bottom:
+            <p style="font-size: 0.9rem; margin-bottom: 15px; color: #555;">Calcula al instante el reparto de aciertos según los signos marcados en el Bloque 1, guarda la jornada en el historial y actualiza la tabla de posiciones.</p>
+            <form action="/admin/cerrar_jornada" method="POST">
+                <button type="submit" class="btn-accion btn-cerrar">🔒 Archivar y Calcular Puntos de la Jornada</button>
+            </form>
+        </div>
+
+        <!-- ✍️ BLOQUE 3.B: AJUSTE MANUAL DE CLASIFICACIÓN -->
+        <div class="bloque" style="background-color: #e3f2fd; border-color: #64b5f6;">
+            <h2 style="color: #1565c0; border-color: #1565c0;">✍️ 3.B AJUSTAR ACIERTOS Y ERRORES MANUALMENTE</h2>
+            <p style="font-size: 0.9rem; margin-bottom: 15px; color: #333;">
+                Introduce aquí el total de aciertos y errores acumulados de cada peñista para poner al día la clasificación de la temporada:
+            </p>
+            
+            <form action="/admin/guardar_clasificacion_manual" method="POST">
+                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; margin-bottom: 15px;">
+                    {% for u in usuarios %}
+                    <div style="background: white; padding: 10px 14px; border-radius: 8px; border: 1px solid #bbdefb; display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+                        <strong style="flex: 1; color: #1a252f;">{{ u[1] }}</strong>
+                        
+                        <label style="font-size: 0.85rem; color: #2e7d32; font-weight: bold;">⚽
+                            <input type="number" name="aciertos_{{ u[0] }}" value="{{ u[2] }}" min="0" style="width: 58px; padding: 5px; text-align: center; border-color: #81c784;" required>
+                        </label>
+                        
+                        <label style="font-size: 0.85rem; color: #c62828; font-weight: bold;">🟥
+                            <input type="number" name="errores_{{ u[0] }}" value="{{ u[3] }}" min="0" style="width: 58px; padding: 5px; text-align: center; border-color: #e57373;" required>
+                        </label>
+                    </div>
+                    {% endfor %}
+                </div>
+                
+                <button type="submit" class="btn-accion" style="background: linear-gradient(135deg, #1565c0, #0d47a1);">
+                    💾 Guardar Puntos Manuales en el Ranking
+                </button>
+            </form>
+        </div>
+
+        <!-- 🚨 BLOQUE 4: RESETEO DE TEMPORADA (Botón rojo para poner toda la liga a 0) -->
+        <div class="bloque" style="background-color: #ffebee; border-color: #ef9a9a;">
+            <h2 style="color: #c62828; border-color: #ef9a9a;">🚨 4. REINICIO MAESTRO DE LA TEMPORADA</h2>
+            <p style="font-size: 0.9rem; margin-bottom: 15px; color: #555;">Pone a cero absoluto los marcadores de aciertos, errores, rotación e historial de jornadas para arrancar un nuevo año deportivo.</p>
+            <form action="/admin/reiniciar_temporada" method="POST" onsubmit="return confirm('¿Seguro que quieres reiniciar la clasificación y el historial a 0 para comenzar una temporada nueva?');">
+                <button type="submit" class="btn-accion btn-peligro">🚨 Resetear Clasificación e Iniciar Nueva Temporada</button>
+            </form>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; margin-top: 20px;">
+            <a class="volver" href="/">⬅️ Volver a la Portada Pública</a>
+            <a class="volver" href="/admin/logout" style="color: #b71c1c;">🔒 Cerrar Sesión de Admin</a>
+        </div>
+    </div>
+
+</body>
+</html>
