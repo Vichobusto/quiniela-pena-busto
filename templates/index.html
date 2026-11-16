@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <!-- 📱 CONTROL DE ESCALA MÓVIL: Evita que la web se abra con zoom desbordado -->
+    <!-- 📱 CONTROL DE ESCALA MÓVIL: Evita zoom desbordado al abrir la web en el teléfono -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Peña Busto - Quiniela Elite</title>
     <!-- Librería profesional para generar las capturas de pantalla -->
@@ -61,7 +61,7 @@
 
         .logo-pena { 
             width: 440px; 
-            max-width: 100%; /* Nunca será más ancho que la pantalla */
+            max-width: 100%;
             height: auto; 
             object-fit: contain;
             background: transparent;
@@ -117,7 +117,7 @@
             font-weight: bold;
             border-radius: 30px;
             cursor: pointer;
-            margin: 0 auto 25px auto; /* Centrado automático horizontal */
+            margin: 0 auto 25px auto;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -276,13 +276,9 @@
         .lista-dobleros { display: flex; gap: 8px; list-style: none; padding: 0; margin: 10px 0 20px 0; flex-wrap: wrap; }
         .lista-dobleros li { background: #ffe0b2; color: var(--doble-color); padding: 6px 14px; border-radius: 20px; font-weight: bold; font-size: 0.9rem; border: 1px solid #ffb74d; }
 
-        /* 📱 DISEÑO RESPONSIVO EXCLUSIVO PARA MÓVILES Y TABLETS (Pantallas menores de 900px) */
+        /* 📱 DISEÑO RESPONSIVO EXCLUSIVO PARA MÓVILES Y TABLETS */
         @media (max-width: 900px) {
-            body {
-                padding: 12px; /* Márgenes laterales más cómodos en móvil */
-            }
-
-            /* 1. Cabecera centrada en columna */
+            body { padding: 12px; }
             .header-container { 
                 flex-direction: column; 
                 align-items: center;
@@ -290,74 +286,19 @@
                 gap: 15px; 
                 margin-bottom: 20px;
             }
-            .logo-area { 
-                width: 100%; 
-                display: flex;
-                justify-content: center;
-            }
-            .logo-pena { 
-                width: 240px; 
-                max-width: 80%;
-                margin: 0 auto;
-            }
-            .navbar { 
-                width: 100%; 
-                min-height: auto; 
-                padding: 18px 15px; 
-                margin: 0 auto;
-            }
-            .navbar-textos h1 { 
-                font-size: 1.65rem; 
-            }
-            .navbar-textos p {
-                font-size: 1rem;
-            }
-
-            /* 2. Botón de WhatsApp centrado y adaptado */
-            .btn-whatsapp-captura {
-                width: 100%;
-                font-size: 0.95rem;
-                padding: 12px 16px;
-                margin: 0 auto 20px auto;
-            }
-
-            /* 3. Apilamos la columna de partidos y el ranking */
-            .grid-principal { 
-                grid-template-columns: 1fr; 
-                gap: 25px;
-            }
-
-            .bloque-titulo {
-                font-size: 1.05rem;
-                justify-content: center;
-                text-align: center;
-            }
-
-            .contenedor-partidos {
-                padding: 10px;
-            }
-
-            /* 4. Reordenamos cada tarjeta de partido para que quepa sin desbordar */
-            .partido-card {
-                grid-template-columns: 35px 1fr; /* Número a la izquierda, resto a la derecha */
-                padding: 14px;
-                gap: 10px;
-            }
-            .equipos-info {
-                grid-column: 1 / -1; /* Los equipos ocupan todo el ancho */
-                font-size: 1.1rem;
-                text-align: center;
-            }
-            .zona-voto {
-                grid-column: 1 / -1; /* Los botones 1 X 2 se centran abajo */
-                justify-content: center;
-                margin-top: 5px;
-            }
-
-            /* 5. Apilamos las cajas de Convocados y Grada */
-            .zona-convocatoria {
-                grid-template-columns: 1fr;
-            }
+            .logo-area { width: 100%; display: flex; justify-content: center; }
+            .logo-pena { width: 240px; max-width: 80%; margin: 0 auto; }
+            .navbar { width: 100%; min-height: auto; padding: 18px 15px; margin: 0 auto; }
+            .navbar-textos h1 { font-size: 1.65rem; }
+            .navbar-textos p { font-size: 1rem; }
+            .btn-whatsapp-captura { width: 100%; font-size: 0.95rem; padding: 12px 16px; margin: 0 auto 20px auto; }
+            .grid-principal { grid-template-columns: 1fr; gap: 25px; }
+            .bloque-titulo { font-size: 1.05rem; justify-content: center; text-align: center; }
+            .contenedor-partidos { padding: 10px; }
+            .partido-card { grid-template-columns: 35px 1fr; padding: 14px; gap: 10px; }
+            .equipos-info { grid-column: 1 / -1; font-size: 1.1rem; text-align: center; }
+            .zona-voto { grid-column: 1 / -1; justify-content: center; margin-top: 5px; }
+            .zona-convocatoria { grid-template-columns: 1fr; }
         }
     </style>
 </head>
@@ -412,10 +353,24 @@
 
                     <div class="zona-voto">
                         {% if es_pasado %}
-                            <span class="pleno-display">
-                                {{ part.pronostico if part.num != 15 else part.pleno_local ~ '-' ~ part.pleno_visitante }}
-                            </span>
+                            <!-- 📜 VISTA DE JORNADA ARCHIVADA: Muestra Apuesta de la Peña vs Resultado Oficial -->
+                            <div style="display: flex; flex-direction: column; align-items: center; gap: 5px;">
+                                <span class="pleno-display" style="font-size: 0.9rem; padding: 5px 10px;">
+                                    Apuesta: {{ part.pronostico if part.num != 15 else part.pleno_local ~ '-' ~ part.pleno_visitante }}
+                                </span>
+                                {% if part.num != 15 %}
+                                    {% set acertado = (part.resultado_real != '-' and part.resultado_real in part.pronostico) %}
+                                    <span style="font-size: 0.85rem; font-weight: bold; padding: 4px 10px; border-radius: 6px; color: white; background: {{ '#2e7d32' if acertado else '#c62828' if part.resultado_real != '-' else '#7f8c8d' }};">
+                                        Real: {{ part.resultado_real }} {{ '✅' if acertado else '❌' if part.resultado_real != '-' else '' }}
+                                    </span>
+                                {% else %}
+                                    <span style="font-size: 0.85rem; font-weight: bold; padding: 4px 10px; border-radius: 6px; color: white; background: #2c3e50;">
+                                        Real: {{ part.pleno_local_real }}-{{ part.pleno_visitante_real }}
+                                    </span>
+                                {% endif %}
+                            </div>
                         {% else %}
+                            <!-- 🟢 VISTA DE JORNADA ACTIVA: Botones para rellenar pronósticos -->
                             {% if part.num == 15 %}
                                 {% if part.pleno_local != '-' %}
                                     <span class="pleno-display" style="background-color: var(--secondary);">M: {{ part.pleno_local }} - {{ part.pleno_visitante }}</span>
