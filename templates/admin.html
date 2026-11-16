@@ -3,26 +3,27 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Panel Administrator - Peña Busto</title>
+    <title>Panel Administrador - Peña Busto</title>
     <style>
-        /* 🎨 ESTILOS VISUALES (La pintura y decoración del despacho) */
+        /* 🎨 ESTILOS VISUALES (La pintura, colores y distribución del despacho) */
         :root {
             --admin-color: #b71c1c;
             --admin-dark: #7f0000;
             --bg-card: rgba(255, 255, 255, 0.98);
             --text: #2c3e50;
         }
+        * { box-sizing: border-box; }
         body { font-family: 'Segoe UI', sans-serif; background-color: #f4f6f9; color: var(--text); margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; }
-        .contenedor { max-width: 950px; width: 100%; background: white; padding: 30px; border-radius: 16px; box-shadow: 0 8px 30px rgba(0,0,0,0.1); margin-bottom: 25px; box-sizing: border-box; }
-        h1 { color: var(--admin-color); text-align: center; text-transform: uppercase; margin-top: 0; font-weight: 900; font-size: 2.2rem; }
+        .contenedor { max-width: 950px; width: 100%; background: white; padding: 30px; border-radius: 16px; box-shadow: 0 8px 30px rgba(0,0,0,0.1); margin-bottom: 25px; }
+        h1 { color: var(--admin-color); text-align: center; text-transform: uppercase; margin-top: 0; font-weight: 900; font-size: 2rem; }
         .sub { text-align: center; color: #666; margin-bottom: 30px; font-weight: bold; font-size: 1.1rem; }
         .bloque { border: 1px solid #e2e8f0; padding: 25px; border-radius: 12px; margin-bottom: 25px; background-color: #f8fafc; }
-        .bloque h2 { margin-top: 0; color: #2e7d32; font-size: 1.3rem; border-bottom: 3px solid #2e7d32; padding-bottom: 6px; text-transform: uppercase; }
+        .bloque h2 { margin-top: 0; color: #2e7d32; font-size: 1.25rem; border-bottom: 3px solid #2e7d32; padding-bottom: 6px; text-transform: uppercase; }
         .fila-partido { display: flex; align-items: center; gap: 15px; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid #edf2f7; flex-wrap: wrap; }
         .num { font-weight: 900; width: 30px; color: #2e7d32; font-size: 1.2rem; }
         input[type="text"], input[type="number"], select { padding: 8px 12px; border: 2px solid #cbd5e1; border-radius: 8px; font-size: 1rem; outline: none; }
         input[type="text"] { flex: 1; min-width: 140px; font-weight: 600; }
-        input[type="text"]:focus, select:focus { border-color: var(--admin-color); }
+        input[type="text"]:focus, input[type="number"]:focus, select:focus { border-color: var(--admin-color); }
         .btn-signo { background-color: #e2e8f0; border: none; padding: 8px 16px; font-weight: 800; cursor: pointer; border-radius: 8px; font-size: 1rem; transition: all 0.2s; }
         .btn-signo:hover { background-color: #cbd5e1; transform: scale(1.05); }
         .marcado { background: linear-gradient(135deg, #2e7d32, #1b5e20) !important; color: white !important; box-shadow: 0 4px 10px rgba(46,125,50,0.3); }
@@ -32,7 +33,7 @@
         .btn-cerrar { background: linear-gradient(135deg, #ff9800, #e65100); }
         .btn-peligro { background: linear-gradient(135deg, #b71c1c, #7f0000); }
         .volver { display: block; text-align: center; margin-top: 20px; color: #0d47a1; text-decoration: none; font-weight: bold; font-size: 1.1rem; }
-        .caja-jornada-manual { background-color: #e3f2fd; padding: 15px; border-radius: 10px; border: 2px solid #90caf9; margin-bottom: 20px; display: flex; align-items: center; gap: 15px; }
+        .caja-jornada-manual { background-color: #e3f2fd; padding: 15px; border-radius: 10px; border: 2px solid #90caf9; margin-bottom: 20px; display: flex; align-items: center; gap: 15px; flex-wrap: wrap; }
     </style>
 </head>
 <body>
@@ -50,7 +51,7 @@
                 <span style="flex: 1; font-weight: 700; font-size: 1.05rem;">{{ part[1] }} vs {{ part[2] }}</span>
                 
                 {% if part[0] == 15 %}
-                    <!-- Formulario especial para los goles del Pleno al 15 -->
+                    <!-- Formulario especial para los goles reales del Pleno al 15 -->
                     <form action="/admin/marcar_resultado" method="POST" style="display: flex; align-items: center; gap: 6px;">
                         <input type="hidden" name="partido_num" value="15">
                         <select name="goles_l_real">
@@ -81,20 +82,20 @@
             {% endfor %}
         </div>
 
-        <!-- 📋 BLOQUE 1.B: EL NUEVO ESCÁNER DE PEGADO RÁPIDO (Nuestro buzón inteligente) -->
+        <!-- 📋 BLOQUE 1.B: ESCÁNER DE PEGADO RÁPIDO EN 5 SEGUNDOS -->
         <div class="bloque" style="background-color: #e8f5e9; border: 2px dashed #2e7d32;">
             <h2 style="color: #2e7d32; border-color: #2e7d32;">📋 1.B PEGAR BOLETO OFICIAL (15 PARTIDOS)</h2>
             <p style="font-size: 0.9rem; margin-bottom: 12px; color: #388e3c; font-weight: 600;">
                 Copia los 15 partidos de cualquier web deportiva (incluyendo Segunda o Liga F), pégalos aquí abajo (un partido por línea, ej: <em>Real Madrid - Barcelona</em>) y pulsa el botón:
             </p>
             
-            <!-- Conecta directamente con @app.route("/admin/pegar_boleto") en app.py -->
+            <!-- Envía el texto pegado a la función pegar_boleto en app.py -->
             <form action="/admin/pegar_boleto" method="POST">
                 <textarea 
                     name="texto_partidos" 
                     rows="8" 
                     placeholder="1. Real Madrid - Barcelona&#10;2. Atlético - Sevilla&#10;3. Barça Fem - Real Sociedad Fem&#10;..." 
-                    style="width: 100%; padding: 12px; border: 2px solid #81c784; border-radius: 8px; font-family: 'Segoe UI', sans-serif; font-size: 0.95rem; box-sizing: border-box; margin-bottom: 10px; resize: vertical;"
+                    style="width: 100%; padding: 12px; border: 2px solid #81c784; border-radius: 8px; font-family: 'Segoe UI', sans-serif; font-size: 0.95rem; margin-bottom: 10px; resize: vertical;"
                     required></textarea>
                 
                 <button type="submit" class="btn-accion" style="background: linear-gradient(135deg, #2e7d32, #1b5e20); margin-top: 0;">
@@ -125,12 +126,43 @@
             </form>
         </div>
 
-        <!-- BLOQUE 3: CIERRE Y REPARTO DE PUNTOS -->
+        <!-- BLOQUE 3: CIERRE Y REPARTO DE PUNTOS AUTOMÁTICO -->
         <div class="bloque" style="background-color: #fff3e0; border-color: #ffb300;">
             <h2 style="color: #e65100; border-color: #ffb300;">🔒 3. EJECUTAR ESCRUTINIO Y AVANZAR SEMANA</h2>
-            <p style="font-size: 0.9rem; margin-bottom: 15px; color: #555;">Calcula al instante el reparto de aciertos, actualiza la tabla de posiciones general de la peña y archiva el fin de semana.</p>
+            <p style="font-size: 0.9rem; margin-bottom: 15px; color: #555;">Calcula al instante el reparto de aciertos según los signos marcados en el Bloque 1 y actualiza la tabla de posiciones general de la peña.</p>
             <form action="/admin/cerrar_jornada" method="POST">
                 <button type="submit" class="btn-accion btn-cerrar">🔒 Archivar y Calcular Puntos de la Jornada</button>
+            </form>
+        </div>
+
+        <!-- ✍️ BLOQUE 3.B: AJUSTE MANUAL DE CLASIFICACIÓN (Para poner al día jornadas pasadas) -->
+        <div class="bloque" style="background-color: #e3f2fd; border-color: #64b5f6;">
+            <h2 style="color: #1565c0; border-color: #1565c0;">✍️ 3.B AJUSTAR ACIERTOS Y ERRORES MANUALMENTE</h2>
+            <p style="font-size: 0.9rem; margin-bottom: 15px; color: #333;">
+                Introduce aquí el total de aciertos y errores acumulados de cada peñista para poner al día la clasificación de la temporada:
+            </p>
+            
+            <!-- Conecta directamente con @app.route("/admin/guardar_clasificacion_manual") en app.py -->
+            <form action="/admin/guardar_clasificacion_manual" method="POST">
+                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; margin-bottom: 15px;">
+                    {% for u in usuarios %}
+                    <div style="background: white; padding: 10px 14px; border-radius: 8px; border: 1px solid #bbdefb; display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+                        <strong style="flex: 1; color: #1a252f;">{{ u[1] }}</strong>
+                        
+                        <label style="font-size: 0.85rem; color: #2e7d32; font-weight: bold;">⚽
+                            <input type="number" name="aciertos_{{ u[0] }}" value="{{ u[2] }}" min="0" style="width: 58px; padding: 5px; text-align: center; border-color: #81c784;" required>
+                        </label>
+                        
+                        <label style="font-size: 0.85rem; color: #c62828; font-weight: bold;">🟥
+                            <input type="number" name="errores_{{ u[0] }}" value="{{ u[3] }}" min="0" style="width: 58px; padding: 5px; text-align: center; border-color: #e57373;" required>
+                        </label>
+                    </div>
+                    {% endfor %}
+                </div>
+                
+                <button type="submit" class="btn-accion" style="background: linear-gradient(135deg, #1565c0, #0d47a1);">
+                    💾 Guardar Puntos Manuales en el Ranking
+                </button>
             </form>
         </div>
 
