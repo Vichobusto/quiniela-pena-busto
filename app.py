@@ -292,9 +292,32 @@ def inicio():
         convocados_21 = [{"nombre": u[0], "partidos": u[1]} for u in todos_usuarios if u[0] in nombres_convocados]
         descansan_7 = [{"nombre": u[0], "partidos": u[1]} for u in todos_usuarios if u[0] not in nombres_convocados]
     
-    cursor.execute("SELECT nombre, aciertos, errores FROM usuarios ORDER BY aciertos DESC, errores ASC, nombre ASC")
+    # 📊 CÁLCULO DE CLASIFICACIÓN POR RATIO (Aciertos / Errores hasta 3 decimales)
+    cursor.execute("SELECT nombre, aciertos, errores FROM usuarios")
     usuarios_db = cursor.fetchall()
-    peñistas_lista = [{"nombre": u[0], "aciertos": u[1], "errores": u[2]} for u in usuarios_db]
+    
+    peñistas_lista = []
+    for u in usuarios_db:
+        nombre = u[0]
+        aciertos = u[1] or 0
+        errores = u[2] or 0
+        
+        # Seguro matemático: si errores > 0 dividimos aciertos/errores; si errores == 0 usamos aciertos
+        if errores > 0:
+            ratio_valor = aciertos / errores
+        else:
+            ratio_valor = float(aciertos)
+            
+        peñistas_lista.append({
+            "nombre": nombre,
+            "aciertos": aciertos,
+            "errores": errores,
+            "ratio_num": ratio_valor,
+            "ratio_texto": f"{ratio_valor:.3f}".replace(".", ",") # Ejemplo: 5/3 -> 1,667
+        })
+        
+    # Ordenamos de mayor a menor ratio; en caso de empate exacto, por más aciertos y menos errores
+    peñistas_lista.sort(key=lambda x: (x["ratio_num"], x["aciertos"], -x["errores"]), reverse=True)
     
     conexion.close()
     

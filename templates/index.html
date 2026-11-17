@@ -218,7 +218,7 @@
 
         .tabla-ranking { width: 100%; border-collapse: separate; border-spacing: 0 6px; }
         .tabla-ranking tr { background: var(--bg-card); }
-        .tabla-ranking td, .tabla-ranking th { padding: 12px; text-align: center; }
+        .tabla-ranking td, .tabla-ranking th { padding: 10px 8px; text-align: center; font-size: 0.95rem; }
         .tabla-ranking th { background: var(--primary); color: white; }
         .tabla-ranking td:first-child { border-radius: 8px 0 0 8px; font-weight: bold; }
         .tabla-ranking td:last-child { border-radius: 0 8px 8px 0; }
@@ -375,16 +375,26 @@
                         {% else %}
                             <!-- 🟢 VISTA DE JORNADA ACTIVA: Botones para rellenar pronósticos -->
                             {% if part.num == 15 %}
-                                {% if part.pleno_local != '-' %}
-                                    <span class="pleno-display" style="background-color: var(--secondary);">M: {{ part.pleno_local }} - {{ part.pleno_visitante }}</span>
-                                {% else %}
-                                    <form action="/guardar_pronostico" method="POST" style="display:flex; gap:4px;" onsubmit="return confirm('👤 {{ part.pronosticador }}, ¿seguro de guardar este resultado en el Pleno al 15?');">
-                                        <input type="hidden" name="partido_num" value="15">
-                                        <select name="goles_local" class="select-premium"><option value="0">0</option><option value="1">1</option><option value="2">2</option><option value="M">M</option></select>
-                                        <select name="goles_visitante" class="select-premium"><option value="0">0</option><option value="1">1</option><option value="2">2</option><option value="M">M</option></select>
-                                        <button type="submit" class="btn-doble-submit" style="padding:4px 8px;">💾</button>
-                                    </form>
-                                {% endif %}
+                                <!-- ⚽ PLENO AL 15: Desplegables siempre visibles (0, 1, 2, M) con el valor actual seleccionado -->
+                                <form action="/guardar_pronostico" method="POST" style="display:flex; align-items:center; gap:6px;" onsubmit="return confirm('👤 {{ part.pronosticador }}, ¿seguro de guardar este marcador en el Pleno al 15?');">
+                                    <input type="hidden" name="partido_num" value="15">
+                                    <select name="goles_local" class="select-premium" style="padding: 6px 10px;" required>
+                                        <option value="-" disabled {% if part.pleno_local not in ['0','1','2','M'] %}selected{% endif %}>-</option>
+                                        <option value="0" {% if part.pleno_local == '0' %}selected{% endif %}>0</option>
+                                        <option value="1" {% if part.pleno_local == '1' %}selected{% endif %}>1</option>
+                                        <option value="2" {% if part.pleno_local == '2' %}selected{% endif %}>2</option>
+                                        <option value="M" {% if part.pleno_local == 'M' %}selected{% endif %}>M</option>
+                                    </select>
+                                    <span style="font-weight: 900; color: var(--secondary);">-</span>
+                                    <select name="goles_visitante" class="select-premium" style="padding: 6px 10px;" required>
+                                        <option value="-" disabled {% if part.pleno_visitante not in ['0','1','2','M'] %}selected{% endif %}>-</option>
+                                        <option value="0" {% if part.pleno_visitante == '0' %}selected{% endif %}>0</option>
+                                        <option value="1" {% if part.pleno_visitante == '1' %}selected{% endif %}>1</option>
+                                        <option value="2" {% if part.pleno_visitante == '2' %}selected{% endif %}>2</option>
+                                        <option value="M" {% if part.pleno_visitante == 'M' %}selected{% endif %}>M</option>
+                                    </select>
+                                    <button type="submit" style="background: var(--primary); color: white; border: none; border-radius: 8px; padding: 8px 12px; font-size: 1.1rem; cursor: pointer;" title="Guardar Pleno al 15">💾</button>
+                                </form>
                             {% else %}
                                 <div style="display:flex; gap:6px;">
                                     <button onclick="votarServidor('{{ part.num }}', '1')" id="btn-{{ part.num }}-1" class="btn-premium {% if '1' in part.pronostico %}voto-activo{% endif %}">1</button>
@@ -435,7 +445,15 @@
         <div class="columna-der">
             <div class="bloque-titulo" style="background: #2c3e50;">📊 RANKING</div>
             <table class="tabla-ranking">
-                <thead><tr><th>Pos</th><th>Peñista</th><th>⚽</th><th>🟥</th></tr></thead>
+                <thead>
+                    <tr>
+                        <th>Pos</th>
+                        <th>Peñista</th>
+                        <th>⚽</th>
+                        <th>🟥</th>
+                        <th>Ratio</th>
+                    </tr>
+                </thead>
                 <tbody>
                     {% for p in peñistas %}
                     <tr class="{% if loop.index == 1 %}podio-1{% elif loop.index == 2 %}podio-2{% elif loop.index == 3 %}podio-3{% endif %}">
@@ -443,6 +461,8 @@
                         <td><strong>{{ p.nombre }}</strong></td>
                         <td style="color:#2e7d32; font-weight:bold;">{{ p.aciertos }}</td>
                         <td style="color:#c62828;">{{ p.errores }}</td>
+                        <!-- 📈 Coeficiente calculado (Aciertos / Errores a 3 decimales) -->
+                        <td style="color:#1b5e20; font-weight:900;">{{ p.ratio_texto }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
