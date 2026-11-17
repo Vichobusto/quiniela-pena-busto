@@ -41,7 +41,7 @@
         <h1>⚙️ DESPACHO DE ADMINISTRACIÓN MASTER</h1>
         <p class="sub">Temporada Activa {{ temporada }} — JORNADA DE TRABAJO REAL: Nº {{ jornada }}</p>
 
-        <!-- 🎯 BLOQUE 0: ESCÁNER DE RESULTADOS OFICIALES (Parejas: Línea 1 Partido / Línea 2 Signo) -->
+        <!-- 🎯 BLOQUE 0: ESCÁNER DE RESULTADOS OFICIALES -->
         <div class="bloque" style="background-color: #fff8e1; border: 2px dashed #ff8f00;">
             <h2 style="color: #e65100; border-color: #ff8f00;">🎯 0. PEGAR RESULTADOS OFICIALES DEL DOMINGO</h2>
             <p style="font-size: 0.9rem; margin-bottom: 12px; color: #555; font-weight: 600;">
@@ -121,6 +121,34 @@
             </form>
         </div>
 
+        <!-- 👤 BLOQUE 1.C: ASIGNACIÓN MANUAL DE PEÑISTAS POR PARTIDO (Ideal para reconstruir jornadas pasadas) -->
+        <div class="bloque" style="background-color: #f3e5f5; border: 2px solid #ab47bc;">
+            <h2 style="color: #6a1b9a; border-color: #ab47bc;">👤 1.C ASIGNAR MANUALMENTE QUIÉN PONE CADA PARTIDO (JORNADAS PASADAS)</h2>
+            <p style="font-size: 0.9rem; margin-bottom: 15px; color: #4a148c; font-weight: 600;">
+                Si estás subiendo una jornada pasada, elige aquí qué peñista puso cada partido. Si lo dejas en <em>"-- Reparto Automático --"</em>, el sistema usará el turno rotativo normal:
+            </p>
+            
+            <form action="/admin/asignar_pronosticadores" method="POST">
+                {% for part in partidos %}
+                <div class="fila-partido">
+                    <span class="num" style="color: #6a1b9a;">{{ part[0] }}</span>
+                    <span style="flex: 1; font-weight: 700; font-size: 0.98rem;">{{ part[1] }} vs {{ part[2] }}</span>
+                    
+                    <select name="pronosticador_{{ part[0] }}" style="min-width: 210px; border-color: #ce93d8; font-weight: bold;">
+                        <option value="">-- Reparto Automático --</option>
+                        {% for u in usuarios %}
+                            <option value="{{ u[1] }}" {% if part[7] == u[1] %}selected{% endif %}>{{ u[1] }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% endfor %}
+                
+                <button type="submit" class="btn-accion" style="background: linear-gradient(135deg, #8e24aa, #4a148c);">
+                    💾 Guardar Asignación Manual de Peñistas
+                </button>
+            </form>
+        </div>
+
         <!-- BLOQUE 2: EDICIÓN MANUAL INDIVIDUAL -->
         <div class="bloque">
             <h2>📝 2. REDEFINIR PRÓXIMA JORNADA (Manual o Entre Semana)</h2>
@@ -182,7 +210,7 @@
             </form>
         </div>
 
-        <!-- 🚨 BLOQUE 4: RESETEO DE TEMPORADA (Botón rojo para poner toda la liga a 0) -->
+        <!-- 🚨 BLOQUE 4: RESETEO DE TEMPORADA -->
         <div class="bloque" style="background-color: #ffebee; border-color: #ef9a9a;">
             <h2 style="color: #c62828; border-color: #ef9a9a;">🚨 4. REINICIO MAESTRO DE LA TEMPORADA</h2>
             <p style="font-size: 0.9rem; margin-bottom: 15px; color: #555;">Pone a cero absoluto los marcadores de aciertos, errores, rotación e historial de jornadas para arrancar un nuevo año deportivo.</p>
