@@ -144,44 +144,29 @@
                 </div>
                 {% endfor %}
 
-                <!-- 6 DOBLES MANUALES -->
+                <!-- 6 DOBLEROS MANUALES (Solo elegir los nombres) -->
                 <div class="caja-dobles-admin">
                     <h3 style="margin-top: 0; color: #4a148c; font-size: 1.1rem; text-transform: uppercase;">
-                        ✌️ Configurar los 6 Dobles de la Jornada
+                        ✌️ Elegir los 6 Peñistas que ponen Doble esta Jornada
                     </h3>
                     <p style="font-size: 0.85rem; color: #555; margin-bottom: 15px;">
-                        Para cada uno de los 6 dobles, selecciona <strong>en qué partido se puso</strong>, <strong>qué peñista lo firmó</strong> y <strong>qué signo extra añadió</strong> (1, X o 2):
+                        Elige aquí únicamente los nombres de los <strong>6 dobleros</strong> (luego, en la portada pública, cada uno seleccionará su partido y su signo como siempre):
                     </p>
 
-                    <!-- range(1, 7) genera exactamente 6 filas: Doble #1 hasta Doble #6 -->
-                    {% for d in range(1, 7) %}
-                    <div class="fila-partido" style="background: white; padding: 10px; border-radius: 8px; border: 1px solid #d1c4e9;">
-                        <span style="font-weight: 900; color: #6a1b9a; min-width: 75px;">Doble #{{ d }}:</span>
-                        
-                        <select name="doble_partido_{{ d }}" style="flex: 1; min-width: 180px; border-color: #b39ddb;">
-                            <option value="">-- Elegir Partido (1-14) --</option>
-                            {% for part in partidos %}
-                                {% if part[0] <= 14 %}
-                                <option value="{{ part[0] }}">P{{ part[0] }}: {{ part[1] }} - {{ part[2] }}</option>
-                                {% endif %}
-                            {% endfor %}
-                        </select>
-
-                        <select name="doble_penista_{{ d }}" style="min-width: 160px; border-color: #b39ddb; font-weight: bold;">
-                            <option value="">-- Elegir Peñista --</option>
-                            {% for u in usuarios %}
-                                <option value="{{ u[1] }}">{{ u[1] }}</option>
-                            {% endfor %}
-                        </select>
-
-                        <select name="doble_signo_{{ d }}" style="min-width: 115px; border-color: #b39ddb; font-weight: 900; color: #4a148c;">
-                            <option value="">-- Signo --</option>
-                            <option value="1">Signo 1</option>
-                            <option value="X">Signo X</option>
-                            <option value="2">Signo 2</option>
-                        </select>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px;">
+                        {% for d in range(1, 7) %}
+                        <div style="background: white; padding: 10px 14px; border-radius: 8px; border: 1px solid #d1c4e9; display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+                            <span style="font-weight: 900; color: #6a1b9a;">Doble #{{ d }}:</span>
+                            
+                            <select name="doble_penista_{{ d }}" style="flex: 1; border-color: #b39ddb; font-weight: bold;">
+                                <option value="">-- Automático --</option>
+                                {% for u in usuarios %}
+                                    <option value="{{ u[1] }}" {% if dobleros_seleccionados[d-1] == u[1] %}selected{% endif %}>{{ u[1] }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        {% endfor %}
                     </div>
-                    {% endfor %}
                 </div>
                 
                 <button type="submit" class="btn-accion" style="background: linear-gradient(135deg, #8e24aa, #4a148c); margin-top: 15px;">
