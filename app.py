@@ -301,7 +301,7 @@ def inicio():
     )
 
 
-# 💾 GUARDAR PRONÓSTICO DESDE LA PORTADA
+# 💾 GUARDAR PRONÓSTICO DESDE LA PORTADA (Con interruptor real de encender/apagar signo)
 @app.route("/guardar_pronostico", methods=["POST"])
 def guardar_pronostico():
     num_partido = request.form.get("partido_num")
@@ -319,11 +319,26 @@ def guardar_pronostico():
         if not sig:
             cursor.execute("UPDATE partidos SET pronostico = '-', doble_por = '', signo_doble = '' WHERE num_partido = ?", (num_partido,))
         else:
-            if sig.strip().upper() == "X":
-                sig = "X"
+            sig = sig.strip().upper()
             cursor.execute("SELECT pronostico FROM partidos WHERE num_partido = ?", (num_partido,))
-            act = cursor.fetchone()[0]
-            nuevo = sig if act == "-" else "".join(sorted(act + sig)) if sig not in act and len(act) < 2 else act
+            fila = cursor.fetchone()
+            act = (fila[0] if fila and fila[0] else "-").strip().upper()
+            
+            # 🔄 INTERRUPTOR REAL:
+            if act == "-" or act == "":
+                nuevo = sig
+            elif sig in act:
+                # Si el signo ya estaba marcado, lo quitamos (ej: de '1X' quitamos '1' -> queda 'X')
+                nuevo = act.replace(sig, "")
+                if nuevo == "":
+                    nuevo = "-"
+            elif len(act) < 2:
+                # Si solo había 1 signo y pulsamos otro distinto, los combinamos ordenados (ej: '1X')
+                nuevo = "".join(sorted(act + sig))
+            else:
+                # Si ya había 2 signos distintos y pulsan un tercero, mantenemos los 2 actuales
+                nuevo = act
+                
             cursor.execute("UPDATE partidos SET pronostico = ? WHERE num_partido = ?", (nuevo, num_partido))
             
     conexion.commit()
