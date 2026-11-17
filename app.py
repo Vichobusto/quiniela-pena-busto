@@ -16,7 +16,7 @@ DATABASE_URL = os.environ.get(
 )
 
 
-# 🔄 ADAPTADOR INTELIGENTE: Permite usar PostgreSQL en la nube (Render) con la misma sintaxis
+# 🔄 ADAPTADOR INTELIGENTE: Traduce las consultas SQLite a PostgreSQL automáticamente
 class CursorPostgresAdaptado:
     def __init__(self, cursor_pg):
         self.cursor = cursor_pg
@@ -52,7 +52,7 @@ class ConexionPostgresAdaptada:
         self.conn.close()
 
 
-# 🔌 CONEXIÓN AL ARCHIVADOR (Usa PostgreSQL permanente en Render; si estás en PC local sin red, usa SQLite)
+# 🔌 CONEXIÓN AL ARCHIVADOR (PostgreSQL permanente en Render / SQLite local de respaldo)
 def conectar_bd():
     if DATABASE_URL and DATABASE_URL.startswith("postgres"):
         try:
@@ -63,7 +63,7 @@ def conectar_bd():
     return sqlite3.connect("quiniela_pena.db")
 
 
-# 🏗️ VERIFICACIÓN Y CREACIÓN DE TABLAS EN LA BASE DE DATOS PERMANENTE
+# 🏗️ VERIFICACIÓN Y CREACIÓN DE TABLAS EN LA BASE DE DATOS
 def verificar_y_actualizar_base_datos():
     conexion = conectar_bd()
     cursor = conexion.cursor()
@@ -71,31 +71,22 @@ def verificar_y_actualizar_base_datos():
     
     tipo_id = "SERIAL PRIMARY KEY" if es_postgres else "INTEGER PRIMARY KEY AUTOINCREMENT"
     
-    # 1. Tabla de configuración (Usamos texto/valor flexible para guardar jornada, temporada y dobleros manuales)
+    # 1. Tabla de configuración (jornada y temporada)
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS configuracion (
         clave TEXT PRIMARY KEY,
-        valor INTEGER,
-        valor_texto TEXT DEFAULT ''
+        valor INTEGER
     )
     """)
     
-    # Migración segura de columna valor_texto por si la tabla configuracion ya existía
     if es_postgres:
-        cursor.execute("ALTER TABLE configuracion ADD COLUMN IF NOT EXISTS valor_texto TEXT DEFAULT ''")
-        cursor.execute("INSERT INTO configuracion (clave, valor, valor_texto) VALUES ('jornada', 1, '') ON CONFLICT (clave) DO NOTHING")
-        cursor.execute("INSERT INTO configuracion (clave, valor, valor_texto) VALUES ('temporada', 2026, '') ON CONFLICT (clave) DO NOTHING")
-        cursor.execute("INSERT INTO configuracion (clave, valor, valor_texto) VALUES ('dobleros_manuales', 0, '') ON CONFLICT (clave) DO NOTHING")
+        cursor.execute("INSERT INTO configuracion (clave, valor) VALUES ('jornada', 1) ON CONFLICT (clave) DO NOTHING")
+        cursor.execute("INSERT INTO configuracion (clave, valor) VALUES ('temporada', 2026) ON CONFLICT (clave) DO NOTHING")
     else:
-        cursor.execute("PRAGMA table_info(configuracion)")
-        cols_conf = [c[1] for c in cursor.fetchall()]
-        if "valor_texto" not in cols_conf:
-            cursor.execute("ALTER TABLE configuracion ADD COLUMN valor_texto TEXT DEFAULT ''")
-        cursor.execute("INSERT OR IGNORE INTO configuracion (clave, valor, valor_texto) VALUES ('jornada', 1, '')")
-        cursor.execute("INSERT OR IGNORE INTO configuracion (clave, valor, valor_texto) VALUES ('temporada', 2026, '')")
-        cursor.execute("INSERT OR IGNORE INTO configuracion (clave, valor, valor_texto) VALUES ('dobleros_manuales', 0, '')")
+        cursor.execute("INSERT OR IGNORE INTO configuracion (clave, valor) VALUES ('jornada', 1)")
+        cursor.execute("INSERT OR IGNORE INTO configuracion (clave, valor) VALUES ('temporada', 2026)")
     
-    # 2. Tabla de partidos activos
+    # 2. Tabla de partidos activos (Incluye pronosticador_manual, doble_por y signo_doble)
     cursor.execute(f"""
     CREATE TABLE IF NOT EXISTS partidos (
         id {tipo_id},
@@ -115,6 +106,7 @@ def verificar_y_actualizar_base_datos():
     )
     """)
     
+    # Migración segura por si la tabla ya existía sin la columna pronosticador_manual
     if es_postgres:
         cursor.execute("ALTER TABLE partidos ADD COLUMN IF NOT EXISTS pronosticador_manual TEXT DEFAULT ''")
     else:
@@ -188,22 +180,14 @@ def verificar_y_actualizar_base_datos():
 verificar_y_actualizar_base_datos()
 
 
-# ⚖️ FUNCIÓN DE REPARTO EQUITATIVO (Respeta dobleros manuales si los hay)
+# ⚖️ FUNCIÓN DE REPARTO EQUITATIVO AUTOMÁTICO
 def obtener_reparto_equitativo(cursor):
     cursor.execute("SELECT nombre, partidos_asignados FROM usuarios ORDER BY partidos_asignados ASC, id ASC")
     lista_ordenada = cursor.fetchall()
     
     titulares_14 = [u[0] for u in lista_ordenada[:14]]
-    dobleros_auto = [u[0] for u in lista_ordenada[14:19]]
+    dobleros_5 = [u[0] for u in lista_ordenada[14:19]]
     pleno_15_resp = lista_ordenada[19][0] if len(lista_ordenada) > 19 else lista_ordenada[0][0]
-    
-    # Comprobamos si el admin eligió dobleros manuales para esta jornada
-    cursor.execute("SELECT valor_texto FROM configuracion WHERE clave = 'dobleros_manuales'")
-    fila_dob = cursor.fetchone()
-    texto_dob = fila_dob[0] if (fila_dob and fila_dob[0]) else ""
-    lista_dob_manual = [d.strip() for d in texto_dob.split(",") if d.strip()]
-    
-    dobleros_5 = lista_dob_manual if len(lista_dob_manual) > 0 else dobleros_auto
     
     convocados_20 = [{"nombre": u[0], "partidos": u[1]} for u in lista_ordenada[:20]]
     descansan_8 = [{"nombre": u[0], "partidos": u[1]} for u in lista_ordenada[20:]]
@@ -326,7 +310,7 @@ def guardar_pronostico():
     return redirect(url_for("inicio"))
 
 
-# 🔥 GUARDAR FIRMA Y SIGNO EXACTO DEL DOBLE
+# 🔥 GUARDAR FIRMA Y SIGNO EXACTO DEL DOBLE DESDE LA PORTADA
 @app.route("/asignar_doble", methods=["POST"])
 def asignar_doble():
     peñista = request.form.get("peñista")
@@ -377,35 +361,28 @@ def admin_panel():
     cursor.execute("SELECT valor FROM configuracion WHERE clave = 'jornada'")
     jornada = cursor.fetchone()[0]
     
-    # Recuperamos los 5 dobleros manuales si están configurados
-    cursor.execute("SELECT valor_texto FROM configuracion WHERE clave = 'dobleros_manuales'")
-    fila_dob = cursor.fetchone()
-    texto_dob = fila_dob[0] if (fila_dob and fila_dob[0]) else ""
-    dobleros_actuales = [d.strip() for d in texto_dob.split(",") if d.strip()]
-    while len(dobleros_actuales) < 5:
-        dobleros_actuales.append("")
-    
     cursor.execute("""
-        SELECT num_partido, local, visitante, division, resultado_real, pleno_local_real, pleno_visitante_real, pronosticador_manual 
+        SELECT num_partido, local, visitante, division, resultado_real, pleno_local_real, pleno_visitante_real, pronosticador_manual, doble_por, signo_doble 
         FROM partidos ORDER BY num_partido ASC
     """)
     partidos = cursor.fetchall()
+    
+    # Construimos la lista de los 5 dobles activos para que el panel admin los muestre preseleccionados
+    dobles_activos = []
+    for p in partidos:
+        if p[0] <= 14 and p[8] and p[8].strip() != "":
+            dobles_activos.append({"partido": p[0], "penista": p[8], "signo": p[9] or ""})
+    while len(dobles_activos) < 5:
+        dobles_activos.append({"partido": "", "penista": "", "signo": ""})
     
     cursor.execute("SELECT id, nombre, aciertos, errores FROM usuarios ORDER BY nombre ASC")
     usuarios = cursor.fetchall()
     
     conexion.close()
-    return render_template(
-        "admin.html", 
-        partidos=partidos, 
-        jornada=jornada, 
-        temporada=temporada, 
-        usuarios=usuarios,
-        dobleros_actuales=dobleros_actuales
-    )
+    return render_template("admin.html", partidos=partidos, jornada=jornada, temporada=temporada, usuarios=usuarios, dobles_activos=dobles_activos)
 
 
-# 👤 GUARDAR ASIGNACIÓN MANUAL DE LOS 15 PARTIDOS Y LOS 5 DOBLES
+# 👤 GUARDAR ASIGNACIÓN MANUAL DE LOS 15 TITULARES Y LOS 5 DOBLES (Para jornadas pasadas)
 @app.route("/admin/asignar_pronosticadores", methods=["POST"])
 def asignar_pronosticadores():
     if not session.get("es_admin"):
@@ -414,20 +391,35 @@ def asignar_pronosticadores():
     conexion = conectar_bd()
     cursor = conexion.cursor()
     
-    # 1. Guardamos los 15 pronosticadores manuales por partido
+    # 1. Guardamos los 15 titulares y limpiamos dobles anteriores
     for i in range(1, 16):
         peñista_elegido = request.form.get(f"pronosticador_{i}", "").strip()
-        cursor.execute("UPDATE partidos SET pronosticador_manual = ? WHERE num_partido = ?", (peñista_elegido, i))
+        cursor.execute("""
+            UPDATE partidos 
+            SET pronosticador_manual = ?, doble_por = '', signo_doble = '' 
+            WHERE num_partido = ?
+        """, (peñista_elegido, i))
         
-    # 2. Guardamos los 5 peñistas a los que les tocan los dobles manualmente
-    dobleros_elegidos = []
+    # 2. Guardamos los 5 dobles manuales (partido elegido, peñista y signo extra)
     for d in range(1, 6):
-        nombre_dob = request.form.get(f"doblero_{d}", "").strip()
-        if nombre_dob:
-            dobleros_elegidos.append(nombre_dob)
+        partido_doble = request.form.get(f"doble_partido_{d}", type=int)
+        peñista_doble = request.form.get(f"doble_penista_{d}", "").strip()
+        signo_doble = request.form.get(f"doble_signo_{d}", "").strip().upper()
+        
+        if partido_doble and peñista_doble and signo_doble in ["1", "X", "2"]:
+            cursor.execute("""
+                UPDATE partidos 
+                SET doble_por = ?, signo_doble = ? 
+                WHERE num_partido = ?
+            """, (peñista_doble, signo_doble, partido_doble))
             
-    cadena_dobleros = ",".join(dobleros_elegidos)
-    cursor.execute("UPDATE configuracion SET valor_texto = ? WHERE clave = 'dobleros_manuales'", (cadena_dobleros,))
+            # Si ya había un signo principal marcado en ese partido, combinamos ambos (ej: '1' + 'X' = '1X')
+            cursor.execute("SELECT pronostico FROM partidos WHERE num_partido = ?", (partido_doble,))
+            fila = cursor.fetchone()
+            actual = fila[0] if fila and fila[0] else "-"
+            if actual != "-" and signo_doble not in actual and len(actual) < 2:
+                combinado = "".join(sorted(actual + signo_doble))
+                cursor.execute("UPDATE partidos SET pronostico = ? WHERE num_partido = ?", (combinado, partido_doble))
         
     conexion.commit()
     conexion.close()
@@ -520,7 +512,7 @@ def pegar_resultados():
     return redirect("/admin")
 
 
-# 📝 GUARDAR EDICIÓN MANUAL DE PARTIDOS
+# 📝 GUARDAR EDICIÓN MANUAL DE PARTIDOS Y Nº DE JORNADA
 @app.route("/admin/guardar_partidos", methods=["POST"])
 def guardar_partidos():
     if not session.get("es_admin"):
@@ -649,8 +641,8 @@ def cerrar_jornada():
                 else:
                     cursor.execute("UPDATE usuarios SET errores = errores + 1 WHERE nombre = ?", (responsable,))
 
-    # 3. Sumamos +1 partido asignado a quienes realmente participaron (manual o automático)
-    hay_manuales = any((p[12] or "").strip() != "" for p in partidos) or len(dobleros_5) > 0
+    # 3. Sumamos +1 partido asignado a quienes realmente participaron
+    hay_manuales = any((p[12] or "").strip() != "" for p in partidos)
     if hay_manuales:
         for nombre_part in participantes_reales_jornada:
             cursor.execute("UPDATE usuarios SET partidos_asignados = partidos_asignados + 1 WHERE nombre = ?", (nombre_part,))
@@ -658,9 +650,8 @@ def cerrar_jornada():
         for c in convocados_20:
             cursor.execute("UPDATE usuarios SET partidos_asignados = partidos_asignados + 1 WHERE nombre = ?", (c["nombre"],))
 
-    # 4. Avanzamos a la siguiente jornada y limpiamos pronosticador_manual y dobleros_manuales
+    # 4. Avanzamos a la siguiente jornada y limpiamos pronosticador_manual
     cursor.execute("UPDATE partidos SET pronosticador_manual = ''")
-    cursor.execute("UPDATE configuracion SET valor_texto = '' WHERE clave = 'dobleros_manuales'")
     cursor.execute("UPDATE configuracion SET valor = valor + 1 WHERE clave = 'jornada'")
 
     conexion.commit()
@@ -706,7 +697,6 @@ def reiniciar_temporada():
     cursor.execute("UPDATE usuarios SET aciertos = 0, errores = 0, partidos_asignados = 0")
     cursor.execute("DELETE FROM historial_jornadas")
     cursor.execute("UPDATE partidos SET pronosticador_manual = ''")
-    cursor.execute("UPDATE configuracion SET valor_texto = '' WHERE clave = 'dobleros_manuales'")
     cursor.execute("UPDATE configuracion SET valor = 1 WHERE clave = 'jornada'")
     conexion.commit()
     conexion.close()
