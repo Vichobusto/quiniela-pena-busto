@@ -570,41 +570,59 @@
                 }
             }
 
-            if (partidoViejoNum && partidoViejoNum != partidoNuevoNum) {
-                let fdBorrar = new FormData();
-                fdBorrar.append('partido_num', partidoViejoNum);
-                fetch('/guardar_pronostico', { method: 'POST', body: fdBorrar }); 
+            // Función interna que guarda el doble en el nuevo partido
+            function aplicarDobleNuevo() {
+                let formData = new FormData();
+                formData.append('peñista', nombrePeñista);
+                formData.append('partido', partidoNuevoNum);
+                formData.append('signo_doble', signoElegido);
+
+                fetch('/asignar_doble', {
+                    method: 'POST',
+                    body: formData
+                }).then(response => {
+                    if (response.ok) {
+                        votarServidor(partidoNuevoNum, signoElegido, function() {
+                            let cardNueva = document.getElementById(`card-partido-${partidoNuevoNum}`);
+                            cardNueva.setAttribute('data-dobles-firmados', nombrePeñista);
+                            document.getElementById(`txt-dobles-${partidoNuevoNum}`).innerHTML = `<span style="color:var(--secondary); font-weight: bold;">[${nombrePeñista}]</span>`;
+                            
+                            document.getElementById('zona-botones-doble').style.display = 'none';
+                            document.getElementById('select-doblero-partido').value = "";
+                            alert(`¡Perfecto! El doble de ${nombrePeñista} se ha guardado en el partido ${partidoNuevoNum}.`);
+                        });
+                    }
+                });
             }
 
-            let formData = new FormData();
-            formData.append('peñista', nombrePeñista);
-            formData.append('partido', partidoNuevoNum);
-            formData.append('signo_doble', signoElegido);
-
-            fetch('/asignar_doble', {
-                method: 'POST',
-                body: formData
-            }).then(response => {
-                if (response.ok) {
-                    if (partidoViejoNum && partidoViejoNum != partidoNuevoNum) {
+            // Si el doblero ya tenía un doble puesto en otro partido, primero quitamos SOLO su signo en ese partido antiguo
+            if (partidoViejoNum && partidoViejoNum != partidoNuevoNum) {
+                let fdQuitar = new FormData();
+                fdQuitar.append('partido', partidoViejoNum);
+                
+                fetch('/quitar_doble', { method: 'POST', body: fdQuitar })
+                    .then(res => res.text())
+                    .then(pronosticoTitularRestante => {
                         let cardVieja = document.getElementById(`card-partido-${partidoViejoNum}`);
                         cardVieja.setAttribute('data-dobles-firmados', '');
+                        cardVieja.setAttribute('data-pronostico', pronosticoTitularRestante);
                         document.getElementById(`txt-dobles-${partidoViejoNum}`).innerHTML = '-';
-                        ['1','X','2'].forEach(s => document.getElementById(`btn-${partidoViejoNum}-${s}`).classList.remove('voto-activo'));
-                        cardVieja.setAttribute('data-pronostico', '-');
-                    }
-
-                    votarServidor(partidoNuevoNum, signoElegido, function() {
-                        let cardNueva = document.getElementById(`card-partido-${partidoNuevoNum}`);
-                        cardNueva.setAttribute('data-dobles-firmados', nombrePeñista);
-                        document.getElementById(`txt-dobles-${partidoNuevoNum}`).innerHTML = `<span style="color:var(--secondary); font-weight: bold;">[${nombrePeñista}]</span>`;
                         
-                        document.getElementById('zona-botones-doble').style.display = 'none';
-                        document.getElementById('select-doblero-partido').value = "";
-                        alert(`¡Perfecto! El doble de ${nombrePeñista} se ha guardado en el partido ${partidoNuevoNum}.`);
+                        // Encendemos únicamente el botón del titular que sigue vivo y apagamos el del doble borrado
+                        ['1', 'X', '2'].forEach(s => {
+                            let btnViejo = document.getElementById(`btn-${partidoViejoNum}-${s}`);
+                            if (pronosticoTitularRestante.includes(s)) {
+                                btnViejo.classList.add('voto-activo');
+                            } else {
+                                btnViejo.classList.remove('voto-activo');
+                            }
+                        });
+                        
+                        aplicarDobleNuevo();
                     });
-                }
-            });
+            } else {
+                aplicarDobleNuevo();
+            }
         }
 
         function descargarBoletoWhatsApp() {

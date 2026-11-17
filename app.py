@@ -238,6 +238,7 @@ def inicio():
     
     partidos_limpios = []
     es_pasado = False
+    titulares_reales_jornada = []
     
     if jornada_viendo != jornada_activa and jornada_viendo in jornadas_hist:
         es_pasado = True
@@ -266,6 +267,7 @@ def inicio():
             manual = p[12] or ""
             responsable_auto = titulares_14[num - 1] if num <= 14 else pleno_15_resp
             responsable = manual if manual.strip() != "" else responsable_auto
+            titulares_reales_jornada.append(responsable)
             
             lista_dobles_partido = [p[4]] if (p[4] and p[4] != "") else []
             partido = {
@@ -279,6 +281,16 @@ def inicio():
             if p[5] and p[5].strip().upper() == "X":
                 partido["pronostico"] = "X"
             partidos_limpios.append(partido)
+            
+        # 🔄 RECALCULAR CONVOCADOS REALES: Incluye siempre los 15 titulares actuales + los 6 dobleros activos
+        cursor.execute("SELECT nombre, partidos_asignados FROM usuarios ORDER BY partidos_asignados ASC, id ASC")
+        todos_usuarios = cursor.fetchall()
+        nombres_convocados = []
+        for nom in titulares_reales_jornada + dobleros_6:
+            if nom and nom not in nombres_convocados:
+                nombres_convocados.append(nom)
+        convocados_21 = [{"nombre": u[0], "partidos": u[1]} for u in todos_usuarios if u[0] in nombres_convocados]
+        descansan_7 = [{"nombre": u[0], "partidos": u[1]} for u in todos_usuarios if u[0] not in nombres_convocados]
     
     cursor.execute("SELECT nombre, aciertos, errores FROM usuarios ORDER BY aciertos DESC, errores ASC, nombre ASC")
     usuarios_db = cursor.fetchall()
@@ -328,15 +340,12 @@ def guardar_pronostico():
             if act == "-" or act == "":
                 nuevo = sig
             elif sig in act:
-                # Si el signo ya estaba marcado, lo quitamos (ej: de '1X' quitamos '1' -> queda 'X')
                 nuevo = act.replace(sig, "")
                 if nuevo == "":
                     nuevo = "-"
             elif len(act) < 2:
-                # Si solo había 1 signo y pulsamos otro distinto, los combinamos ordenados (ej: '1X')
                 nuevo = "".join(sorted(act + sig))
             else:
-                # Si ya había 2 signos distintos y pulsan un tercero, mantenemos los 2 actuales
                 nuevo = act
                 
             cursor.execute("UPDATE partidos SET pronostico = ? WHERE num_partido = ?", (nuevo, num_partido))
@@ -359,6 +368,42 @@ def asignar_doble():
     conexion.commit()
     conexion.close()
     return "OK", 200
+
+
+# 🧹 QUITAR SOLO EL DOBLE DE UN PARTIDO ANTIGUO (Respetando el signo del titular)
+@app.route("/quitar_doble", methods=["POST"])
+def quitar_doble():
+    partido = request.form.get("partido")
+    conexion = conectar_bd()
+    cursor = conexion.cursor()
+    
+    # 1. Consultamos el pronóstico actual y cuál fue el signo exacto que puso el doblero
+    cursor.execute("SELECT pronostico, signo_doble FROM partidos WHERE num_partido = ?", (partido,))
+    fila = cursor.fetchone()
+    
+    pronostico_restante = "-"
+    if fila:
+        actual = (fila[0] or "-").strip().upper()
+        sig_doble = (fila[1] or "").strip().upper()
+        
+        # 2. Si sabemos cuál era el signo del doble, lo restamos dejando intacto el del titular
+        if sig_doble and sig_doble in actual:
+            pronostico_restante = actual.replace(sig_doble, "")
+            if pronostico_restante == "":
+                pronostico_restante = "-"
+        else:
+            pronostico_restante = actual
+            
+    # 3. Actualizamos la base de datos manteniendo el signo del titular y limpiando la firma del doble
+    cursor.execute("""
+        UPDATE partidos 
+        SET pronostico = ?, doble_por = '', signo_doble = '' 
+        WHERE num_partido = ?
+    """, (pronostico_restante, partido))
+    
+    conexion.commit()
+    conexion.close()
+    return pronostico_restante, 200
 
 
 # ==============================================================================
