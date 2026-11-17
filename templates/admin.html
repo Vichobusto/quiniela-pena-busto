@@ -144,16 +144,17 @@
                 </div>
                 {% endfor %}
 
-                <!-- 5 DOBLES MANUALES -->
+                <!-- 6 DOBLES MANUALES -->
                 <div class="caja-dobles-admin">
                     <h3 style="margin-top: 0; color: #4a148c; font-size: 1.1rem; text-transform: uppercase;">
-                        ✌️ Configurar los 5 Dobles de la Jornada
+                        ✌️ Configurar los 6 Dobles de la Jornada
                     </h3>
                     <p style="font-size: 0.85rem; color: #555; margin-bottom: 15px;">
-                        Para cada uno de los 5 dobles, selecciona <strong>en qué partido se puso</strong>, <strong>qué peñista lo firmó</strong> y <strong>qué signo extra añadió</strong> (1, X o 2):
+                        Para cada uno de los 6 dobles, selecciona <strong>en qué partido se puso</strong>, <strong>qué peñista lo firmó</strong> y <strong>qué signo extra añadió</strong> (1, X o 2):
                     </p>
 
-                    {% for d in range(1, 6) %}
+                    <!-- range(1, 7) genera exactamente 6 filas: Doble #1 hasta Doble #6 -->
+                    {% for d in range(1, 7) %}
                     <div class="fila-partido" style="background: white; padding: 10px; border-radius: 8px; border: 1px solid #d1c4e9;">
                         <span style="font-weight: 900; color: #6a1b9a; min-width: 75px;">Doble #{{ d }}:</span>
                         

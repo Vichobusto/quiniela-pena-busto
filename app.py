@@ -180,19 +180,21 @@ def verificar_y_actualizar_base_datos():
 verificar_y_actualizar_base_datos()
 
 
-# ⚖️ FUNCIÓN DE REPARTO EQUITATIVO AUTOMÁTICO
+# ⚖️ FUNCIÓN DE REPARTO EQUITATIVO AUTOMÁTICO (14 titulares + 6 dobles + 1 Pleno = 21 convocados)
 def obtener_reparto_equitativo(cursor):
     cursor.execute("SELECT nombre, partidos_asignados FROM usuarios ORDER BY partidos_asignados ASC, id ASC")
     lista_ordenada = cursor.fetchall()
     
     titulares_14 = [u[0] for u in lista_ordenada[:14]]
-    dobleros_5 = [u[0] for u in lista_ordenada[14:19]]
-    pleno_15_resp = lista_ordenada[19][0] if len(lista_ordenada) > 19 else lista_ordenada[0][0]
+    # Cortamos del índice 14 al 20 para obtener exactamente 6 dobleros
+    dobleros_6 = [u[0] for u in lista_ordenada[14:20]]
+    pleno_15_resp = lista_ordenada[20][0] if len(lista_ordenada) > 20 else lista_ordenada[0][0]
     
-    convocados_20 = [{"nombre": u[0], "partidos": u[1]} for u in lista_ordenada[:20]]
-    descansan_8 = [{"nombre": u[0], "partidos": u[1]} for u in lista_ordenada[20:]]
+    # Total convocados: 21 peñistas (descansan 7 de los 28)
+    convocados_21 = [{"nombre": u[0], "partidos": u[1]} for u in lista_ordenada[:21]]
+    descansan_7 = [{"nombre": u[0], "partidos": u[1]} for u in lista_ordenada[21:]]
     
-    return titulares_14, dobleros_5, pleno_15_resp, convocados_20, descansan_8
+    return titulares_14, dobleros_6, pleno_15_resp, convocados_21, descansan_7
 
 
 # 🏠 RUTA PÚBLICA: PORTADA DE LA PEÑA
@@ -213,7 +215,7 @@ def inicio():
     jornadas_hist = [fila[0] for fila in cursor.fetchall()]
     jornadas_disponibles = sorted(list(set(jornadas_hist + [jornada_activa])))
     
-    titulares_14, dobleros_5, pleno_15_resp, convocados_20, descansan_8 = obtener_reparto_equitativo(cursor)
+    titulares_14, dobleros_6, pleno_15_resp, convocados_21, descansan_7 = obtener_reparto_equitativo(cursor)
     
     partidos_limpios = []
     es_pasado = False
@@ -269,10 +271,10 @@ def inicio():
         "index.html", 
         partidos=partidos_limpios, 
         peñistas=peñistas_lista,          
-        los_del_doble=dobleros_5,      
-        conjunto_dobles=dobleros_5,  
-        convocados=convocados_20,            
-        descansan=descansan_8,              
+        los_del_doble=dobleros_6,      
+        conjunto_dobles=dobleros_6,  
+        convocados=convocados_21,            
+        descansan=descansan_7,              
         jornada_viendo=jornada_viendo, 
         jornadas_disponibles=jornadas_disponibles,
         temporada=temporada,
@@ -367,12 +369,12 @@ def admin_panel():
     """)
     partidos = cursor.fetchall()
     
-    # Construimos la lista de los 5 dobles activos para que el panel admin los muestre preseleccionados
+    # Construimos la lista de los 6 dobles activos para que el panel admin los muestre
     dobles_activos = []
     for p in partidos:
         if p[0] <= 14 and p[8] and p[8].strip() != "":
             dobles_activos.append({"partido": p[0], "penista": p[8], "signo": p[9] or ""})
-    while len(dobles_activos) < 5:
+    while len(dobles_activos) < 6:
         dobles_activos.append({"partido": "", "penista": "", "signo": ""})
     
     cursor.execute("SELECT id, nombre, aciertos, errores FROM usuarios ORDER BY nombre ASC")
@@ -382,7 +384,7 @@ def admin_panel():
     return render_template("admin.html", partidos=partidos, jornada=jornada, temporada=temporada, usuarios=usuarios, dobles_activos=dobles_activos)
 
 
-# 👤 GUARDAR ASIGNACIÓN MANUAL DE LOS 15 TITULARES Y LOS 5 DOBLES (Para jornadas pasadas)
+# 👤 GUARDAR ASIGNACIÓN MANUAL DE LOS 15 TITULARES Y LOS 6 DOBLES (Para jornadas pasadas)
 @app.route("/admin/asignar_pronosticadores", methods=["POST"])
 def asignar_pronosticadores():
     if not session.get("es_admin"):
@@ -400,8 +402,8 @@ def asignar_pronosticadores():
             WHERE num_partido = ?
         """, (peñista_elegido, i))
         
-    # 2. Guardamos los 5 dobles manuales (partido elegido, peñista y signo extra)
-    for d in range(1, 6):
+    # 2. Guardamos los 6 dobles manuales (partido elegido, peñista y signo extra)
+    for d in range(1, 7):
         partido_doble = request.form.get(f"doble_partido_{d}", type=int)
         peñista_doble = request.form.get(f"doble_penista_{d}", "").strip()
         signo_doble = request.form.get(f"doble_signo_{d}", "").strip().upper()
@@ -582,7 +584,7 @@ def cerrar_jornada():
     cursor.execute("SELECT valor FROM configuracion WHERE clave = 'jornada'")
     jornada_actual = cursor.fetchone()[0]
     
-    titulares_14, dobleros_5, pleno_15_resp, convocados_20, _ = obtener_reparto_equitativo(cursor)
+    titulares_14, dobleros_6, pleno_15_resp, convocados_21, _ = obtener_reparto_equitativo(cursor)
     
     cursor.execute("""
         SELECT num_partido, local, visitante, division, pronostico, resultado_real, 
@@ -641,13 +643,13 @@ def cerrar_jornada():
                 else:
                     cursor.execute("UPDATE usuarios SET errores = errores + 1 WHERE nombre = ?", (responsable,))
 
-    # 3. Sumamos +1 partido asignado a quienes realmente participaron
+    # 3. Sumamos +1 partido asignado a quienes realmente participaron (21 convocados)
     hay_manuales = any((p[12] or "").strip() != "" for p in partidos)
     if hay_manuales:
         for nombre_part in participantes_reales_jornada:
             cursor.execute("UPDATE usuarios SET partidos_asignados = partidos_asignados + 1 WHERE nombre = ?", (nombre_part,))
     else:
-        for c in convocados_20:
+        for c in convocados_21:
             cursor.execute("UPDATE usuarios SET partidos_asignados = partidos_asignados + 1 WHERE nombre = ?", (c["nombre"],))
 
     # 4. Avanzamos a la siguiente jornada y limpiamos pronosticador_manual
