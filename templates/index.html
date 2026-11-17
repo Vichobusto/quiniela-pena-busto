@@ -306,6 +306,7 @@
 
     <div class="header-container">
         <div class="logo-area">
+            <!-- 🖼️ RUTA EXACTA DEL ESCUDO EN MINÚSCULA (logo.png) -->
             <img class="logo-pena" src="{{ url_for('static', filename='imagenes/logo.png') }}" alt="Logo Peña">
         </div>
         <div class="navbar">
@@ -335,11 +336,13 @@
 
             <div class="contenedor-partidos" id="area-boleto-captura" style="background: var(--primary);">
                 {% for part in partidos %}
-                <div class="partido-card {% if part.num == 15 %}card-pleno{% endif %}" id="card-partido-{{ part.num }}" data-pronostico="{{ part.pronostico }}" data-dobles-firmados="{{ part.dobles|join(',') }}">
+                <!-- 🏷️ data-responsable guarda el nombre del peñista dueño de esta casilla para el doble check -->
+                <div class="partido-card {% if part.num == 15 %}card-pleno{% endif %}" id="card-partido-{{ part.num }}" data-pronostico="{{ part.pronostico }}" data-dobles-firmados="{{ part.dobles|join(',') }}" data-responsable="{{ part.pronosticador }}">
                     <div class="partido-num">{{ part.num }}</div>
                     <div>
-                        <span class="badge-div {% if part.division == 'Primera' %}p1{% elif part.division == 'Segunda' %}p2{% else %}p15{% endif %}">
-                            {{ '1ª Div' if part.division == 'Primera' else '2ª Div' if part.division == 'Segunda' else 'PLENO' }}
+                        <!-- 🏷️ ETIQUETA EXACTA: 1ª Div (1-8), 2ª Div (9-14) y PLENO solo en el 15 -->
+                        <span class="badge-div {% if part.num == 15 %}p15{% elif part.num <= 8 %}p1{% else %}p2{% endif %}">
+                            {{ 'PLENO' if part.num == 15 else '1ª Div' if part.num <= 8 else '2ª Div' }}
                         </span>
                     </div>
 
@@ -375,7 +378,7 @@
                                 {% if part.pleno_local != '-' %}
                                     <span class="pleno-display" style="background-color: var(--secondary);">M: {{ part.pleno_local }} - {{ part.pleno_visitante }}</span>
                                 {% else %}
-                                    <form action="/guardar_pronostico" method="POST" style="display:flex; gap:4px;">
+                                    <form action="/guardar_pronostico" method="POST" style="display:flex; gap:4px;" onsubmit="return confirm('👤 {{ part.pronosticador }}, ¿seguro de guardar este resultado en el Pleno al 15?');">
                                         <input type="hidden" name="partido_num" value="15">
                                         <select name="goles_local" class="select-premium"><option value="0">0</option><option value="1">1</option><option value="2">2</option><option value="M">M</option></select>
                                         <select name="goles_visitante" class="select-premium"><option value="0">0</option><option value="1">1</option><option value="2">2</option><option value="M">M</option></select>
@@ -449,7 +452,7 @@
 
     <div class="zona-convocatoria">
         <div class="box-lista">
-            <h3 style="color:#2e7d32; margin-top:0;">🟢 CONVOCADOS ESTA JORNADA (20)</h3>
+            <h3 style="color:#2e7d32; margin-top:0;">🟢 CONVOCADOS ESTA JORNADA ({{ convocados|length }})</h3>
             <ul class="lista-badges">
                 {% for c in convocados %}
                 <li class="badge-juega {% if c.nombre in conjunto_dobles %}badge-doblero-activo{% endif %}">
@@ -470,6 +473,18 @@
 
     <script>
         function votarServidor(partidoNum, signo, callback) {
+            // 1. Leemos la tarjeta del partido y el nombre del peñista dueño de esa casilla
+            let card = document.getElementById(`card-partido-${partidoNum}`);
+            let responsable = card.getAttribute('data-responsable') || 'este peñista';
+
+            // 2. Si es un clic directo en los botones 1X2 (no automático desde el panel de dobles), pedimos doble check
+            if (!callback) {
+                let confirmar = confirm(`👤 ${responsable}, ¿seguro de marcar la casilla ${signo} en el Partido ${partidoNum}?`);
+                if (!confirmar) {
+                    return; // Si pulsa Cancelar, no se envía ni se cambia nada
+                }
+            }
+
             let formData = new FormData();
             formData.append('partido_num', partidoNum);
             formData.append('signo', signo);
@@ -480,7 +495,6 @@
             }).then(response => {
                 if (response.ok) {
                     let btn = document.getElementById(`btn-${partidoNum}-${signo}`);
-                    let card = document.getElementById(`card-partido-${partidoNum}`);
                     let pronosticoActual = card.getAttribute('data-pronostico') || '-';
 
                     if (pronosticoActual === '-' || pronosticoActual === '') {
