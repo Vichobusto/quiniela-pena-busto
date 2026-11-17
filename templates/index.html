@@ -9,7 +9,6 @@
             --verde-campo: #1b5e20;
             --verde-claro: #2e7d32;
             --dorado: #f59e0b;
-            --azul-vip: #1e3a8a;
             --rojo-fallo: #dc2626;
             --bg-oscuro: #0f172a;
             --tarjeta: #ffffff;
@@ -70,10 +69,7 @@
             border-radius: 10px;
             font-weight: 800;
             font-size: 0.9rem;
-            transition: transform 0.2s;
         }
-        .btn-admin:hover { transform: scale(1.04); }
-
         .aviso-historico {
             max-width: 1150px;
             width: 100%;
@@ -86,7 +82,6 @@
             margin-bottom: 20px;
             text-align: center;
         }
-
         .grid-principal {
             max-width: 1150px;
             width: 100%;
@@ -95,7 +90,6 @@
             gap: 20px;
         }
         @media (max-width: 920px) { .grid-principal { grid-template-columns: 1fr; } }
-
         .tarjeta {
             background: var(--tarjeta);
             border-radius: 16px;
@@ -114,8 +108,6 @@
             justify-content: space-between;
             align-items: center;
         }
-
-        /* TABLA DEL BOLETO */
         .fila-partido {
             display: grid;
             grid-template-columns: 32px 1fr auto auto;
@@ -139,8 +131,6 @@
         .meta-partido { font-size: 0.78rem; color: #64748b; margin-top: 3px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
         .badge-autor { background: #e0e7ff; color: #1e40af; padding: 2px 7px; border-radius: 5px; font-weight: 700; }
         .badge-doble { background: #f3e8ff; color: #6b21a8; padding: 2px 7px; border-radius: 5px; font-weight: 700; }
-
-        /* BOTONES 1 X 2 */
         .botones-1x2 { display: flex; gap: 5px; }
         .btn-1x2 {
             width: 34px;
@@ -151,9 +141,7 @@
             font-weight: 900;
             cursor: pointer;
             color: #334155;
-            transition: all 0.15s;
         }
-        .btn-1x2:hover { border-color: var(--verde-claro); }
         .btn-1x2.activo {
             background: var(--verde-claro);
             color: white;
@@ -167,8 +155,6 @@
             font-size: 0.85rem;
             padding: 0 4px;
         }
-        .btn-limpiar:hover { color: var(--rojo-fallo); }
-
         .caja-resultado-real {
             min-width: 68px;
             text-align: right;
@@ -178,8 +164,6 @@
         .res-acierto { color: var(--verde-claro); background: #dcfce7; padding: 3px 7px; border-radius: 6px; }
         .res-fallo { color: var(--rojo-fallo); background: #fee2e2; padding: 3px 7px; border-radius: 6px; }
         .res-pendiente { color: #94a3b8; font-weight: 600; }
-
-        /* CONVOCATORIA Y DOBLES */
         .chips-lista { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
         .chip {
             background: #f1f5f9;
@@ -192,33 +176,6 @@
         }
         .chip-doble { background: #f3e8ff; color: #6b21a8; border-color: #d8b4fe; }
         .chip-descanso { background: #fff1f2; color: #9f1239; border-color: #fecdd3; }
-
-        .form-doble-rapido {
-            background: #f8fafc;
-            padding: 12px;
-            border-radius: 10px;
-            border: 1px dashed #94a3b8;
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            margin-top: 10px;
-        }
-        .form-doble-rapido select, .form-doble-rapido button {
-            padding: 7px 10px;
-            border-radius: 7px;
-            border: 1px solid #cbd5e1;
-            font-size: 0.88rem;
-            font-weight: 600;
-        }
-        .form-doble-rapido button {
-            background: #6b21a8;
-            color: white;
-            border: none;
-            cursor: pointer;
-            font-weight: 700;
-        }
-
-        /* CLASIFICACIÓN */
         table.ranking { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
         table.ranking th {
             text-align: left;
@@ -236,7 +193,6 @@
 </head>
 <body>
 
-    <!-- CABECERA OFICIAL -->
     <div class="cabecera">
         <div class="titulo-grupo">
             <h1>⚽ Quiniela Oficial — Peña Busto</h1>
@@ -265,7 +221,6 @@
     </div>
     {% endif %}
 
-    <!-- CONTENIDO PRINCIPAL -->
     <div class="grid-principal">
 
         <!-- COLUMNA IZQUIERDA: BOLETO DE 15 PARTIDOS -->
@@ -291,7 +246,6 @@
                         </div>
                     </div>
 
-                    <!-- ZONA DE PRONÓSTICOS -->
                     <div>
                         {% if p.num == 15 %}
                             {% if not es_pasado %}
@@ -338,7 +292,6 @@
                         {% endif %}
                     </div>
 
-                    <!-- COLUMNA DE RESULTADO REAL -->
                     <div class="caja-resultado-real">
                         {% if p.num == 15 %}
                             {% if p.pleno_local_real != '-' and p.pleno_visitante_real != '-' %}
@@ -367,7 +320,7 @@
             </div>
         </div>
 
-        <!-- COLUMNA DERECHA: CONVOCATORIA, DOBLES Y RANKING -->
+        <!-- COLUMNA DERECHA: CONVOCATORIA Y RANKING -->
         <div>
             {% if not es_pasado %}
             <div class="tarjeta">
@@ -376,31 +329,6 @@
                     {% for d in los_del_doble %}
                         <span class="chip chip-doble">✌️ {{ d }}</span>
                     {% endfor %}
-                </div>
-
-                <div class="form-doble-rapido">
-                    <strong style="font-size: 0.85rem; color: #475569;">Registrar firma de doble en el boleto:</strong>
-                    <select id="sel_doble_partido">
-                        <option value="">-- Selecciona partido (1-14) --</option>
-                        {% for p in partidos %}
-                            {% if p.num <= 14 %}
-                                <option value="{{ p.num }}">P{{ p.num }}: {{ p.local }} - {{ p.visitante }}</option>
-                            {% endif %}
-                        {% endfor %}
-                    </select>
-                    <select id="sel_doble_penista">
-                        <option value="">-- ¿Quién pone el doble? --</option>
-                        {% for u in peñistas %}
-                            <option value="{{ u.nombre }}">{{ u.nombre }}</option>
-                        {% endfor %}
-                    </select>
-                    <select id="sel_doble_signo">
-                        <option value="">-- Signo añadido por el doble --</option>
-                        <option value="1">Signo 1</option>
-                        <option value="X">Signo X</option>
-                        <option value="2">Signo 2</option>
-                    </select>
-                    <button type="button" onclick="guardarDobleRapido()">💾 Asignar Doble</button>
                 </div>
 
                 <h3 style="font-size: 0.9rem; color: #64748b; margin: 16px 0 8px 0;">😴 Descansan esta jornada (8):</h3>
@@ -412,7 +340,6 @@
             </div>
             {% endif %}
 
-            <!-- CLASIFICACIÓN GENERAL -->
             <div class="tarjeta">
                 <h2>🏆 Clasificación General</h2>
                 <table class="ranking">
@@ -439,35 +366,6 @@
         </div>
 
     </div>
-
-    <script>
-        function guardarDobleRapido() {
-            const partido = document.getElementById("sel_doble_partido").value;
-            const penista = document.getElementById("sel_doble_penista").value;
-            const signo = document.getElementById("sel_doble_signo").value;
-
-            if (!partido || !penista || !signo) {
-                alert("Selecciona el partido, el peñista y el signo del doble.");
-                return;
-            }
-
-            const datos = new URLSearchParams();
-            datos.append("partido", partido);
-            datos.append("peñista", penista);
-            datos.append("signo_doble", signo);
-
-            fetch("/asignar_doble", {
-                method: "POST",
-                body: datos
-            }).then(res => {
-                if (res.ok) {
-                    window.location.reload();
-                } else {
-                    alert("Error al asignar el doble.");
-                }
-            });
-        }
-    </script>
 
 </body>
 </html>
