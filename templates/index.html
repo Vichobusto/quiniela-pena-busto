@@ -412,9 +412,20 @@
             <div class="panel-dobles">
                 <h3 style="margin-top:0; color:var(--doble-color); font-size: 1.3rem; text-transform: uppercase;">🔥 Dobles de esta semana</h3>
                 
+                <!-- 📋 Recopilamos en una lista los nombres de quienes ya han sellado su doble -->
+                {% set ns = namespace(firmados=[]) %}
+                {% for p in partidos %}
+                    {% if p.doble_por %}
+                        {% set _ = ns.firmados.append(p.doble_por) %}
+                    {% endif %}
+                {% endfor %}
+
                 <ul class="lista-dobleros">
                     {% for nombre in los_del_doble %}
-                        <li>⚡ {{ nombre }}</li>
+                        {% set ya_puso = nombre in ns.firmados %}
+                        <li id="badge-doblero-{{ nombre }}" style="{% if ya_puso %}background: #e8f5e9; color: #1b5e20; border-color: #2e7d32;{% endif %}">
+                            {{ '✅' if ya_puso else '⏳' }} {{ nombre }}
+                        </li>
                     {% endfor %}
                 </ul>
 
@@ -615,6 +626,15 @@
                             let cardNueva = document.getElementById(`card-partido-${partidoNuevoNum}`);
                             cardNueva.setAttribute('data-dobles-firmados', nombrePeñista);
                             document.getElementById(`txt-dobles-${partidoNuevoNum}`).innerHTML = `<span style="color:var(--secondary); font-weight: bold;">[${nombrePeñista}]</span>`;
+
+                            // ✅ LÍNEAS NUEVAS: Encendemos su chapa verde con check en la lista inferior al instante
+                            let badgeDoblero = document.getElementById(`badge-doblero-${nombrePeñista}`);
+                            if (badgeDoblero) {
+                                badgeDoblero.style.background = '#e8f5e9';
+                                badgeDoblero.style.color = '#1b5e20';
+                                badgeDoblero.style.borderColor = '#2e7d32';
+                                badgeDoblero.innerHTML = `✅ ${nombrePeñista}`;
+                            }
                             
                             document.getElementById('zona-botones-doble').style.display = 'none';
                             document.getElementById('select-doblero-partido').value = "";
