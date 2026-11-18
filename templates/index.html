@@ -526,6 +526,54 @@
             </ul>
         </div>
     </div>
+<!-- 🎫 PLANTILLA OCULTA DEL BOLETO OFICIAL PARA EXPORTAR A WHATSAPP (Calibrada con 0 1 2 M) -->
+    <div id="contenedor-oculto-oficial" style="position: fixed; left: -9999px; top: 0;">
+        <div id="boleto-oficial-imprimir" style="position: relative; width: 700px; height: 800px; font-family: Arial, sans-serif; background: white;">
+            <!-- Imagen base de la quiniela vacía -->
+            <img src="{{ url_for('static', filename='imagenes/quiniela_vacia.jpg') }}" style="width: 700px; height: 800px; display: block;" alt="Boleto Oficial">
+            
+            <!-- Filas 1 a 14 superpuestas sobre los huecos exactos de la plantilla -->
+            {% for i in range(1, 15) %}
+            {% set top_px = 171 + (i - 1) * 35.1 %}
+            <div style="position: absolute; top: {{ top_px }}px; left: 74px; width: 610px; height: 32px; display: flex; align-items: center; font-weight: bold; font-size: 14px; color: #111;">
+                <!-- Hueco Equipo Local -->
+                <div id="ofi-local-{{ i }}" style="width: 248px; padding-left: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"></div>
+                <!-- Hueco Equipo Visitante -->
+                <div id="ofi-visitante-{{ i }}" style="width: 246px; padding-left: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"></div>
+                <!-- Cuadraditos 1 X 2 -->
+                <div style="width: 112px; display: flex; justify-content: space-between; align-items: center; padding: 0 5px; font-size: 20px; font-weight: 900; color: #b71c1c;">
+                    <span id="ofi-chk-{{ i }}-1" style="width: 24px; text-align: center;"></span>
+                    <span id="ofi-chk-{{ i }}-X" style="width: 24px; text-align: center;"></span>
+                    <span id="ofi-chk-{{ i }}-2" style="width: 24px; text-align: center;"></span>
+                </div>
+            </div>
+            {% endfor %}
+
+            <!-- Fila 15: PLENO AL 15 (Caja Local + 0 1 2 M | Caja Visitante + 0 1 2 M) -->
+            <div style="position: absolute; top: 727px; left: 72px; width: 612px; height: 36px; display: flex; align-items: center; font-weight: bold; font-size: 13px; color: #111;">
+                <!-- Nombre Equipo Local 15 -->
+                <div id="ofi-local-15" style="width: 134px; padding: 0 4px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"></div>
+                <!-- 4 Cuadraditos Local: 0 1 2 M -->
+                <div style="width: 136px; display: flex; justify-content: space-between; align-items: center; padding: 0 5px; font-size: 19px; font-weight: 900; color: #b71c1c;">
+                    <span id="ofi-p15-L-0" style="width: 24px; text-align: center;"></span>
+                    <span id="ofi-p15-L-1" style="width: 24px; text-align: center;"></span>
+                    <span id="ofi-p15-L-2" style="width: 24px; text-align: center;"></span>
+                    <span id="ofi-p15-L-M" style="width: 24px; text-align: center;"></span>
+                </div>
+                <!-- Espacio para el guion central '-' -->
+                <div style="width: 20px;"></div>
+                <!-- Nombre Equipo Visitante 15 -->
+                <div id="ofi-visitante-15" style="width: 156px; padding: 0 4px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"></div>
+                <!-- 4 Cuadraditos Visitante: 0 1 2 M -->
+                <div style="width: 136px; display: flex; justify-content: space-between; align-items: center; padding: 0 6px; font-size: 19px; font-weight: 900; color: #b71c1c;">
+                    <span id="ofi-p15-V-0" style="width: 24px; text-align: center;"></span>
+                    <span id="ofi-p15-V-1" style="width: 24px; text-align: center;"></span>
+                    <span id="ofi-p15-V-2" style="width: 24px; text-align: center;"></span>
+                    <span id="ofi-p15-V-M" style="width: 24px; text-align: center;"></span>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- ⚡ ETIQUETA <script> RESTAURADA PARA QUE FUNCIONEN TODOS LOS CLICS -->
     <script>
@@ -709,24 +757,51 @@
         }
 
         function descargarBoletoWhatsApp() {
-            let area = document.getElementById('area-boleto-captura');
-            area.classList.add('modo-captura-compacta');
+            // 1. Rellenamos los partidos 1 al 14 desde las tarjetas actuales de la pantalla
+            for (let i = 1; i <= 14; i++) {
+                let card = document.getElementById(`card-partido-${i}`);
+                if (!card) continue;
 
-            let opciones = {
-                backgroundColor: '#1b5e20',
-                scale: 2, 
-                useCORS: true,
-                windowWidth: 900
-            };
+                let textoEquipos = card.querySelector('.equipos-info').childNodes[0].textContent.trim();
+                let partes = textoEquipos.split(' vs ');
+                document.getElementById(`ofi-local-${i}`).textContent = partes[0] || '';
+                document.getElementById(`ofi-visitante-${i}`).textContent = partes[1] || '';
 
-            html2canvas(area, opciones).then(canvas => {
-                area.classList.remove('modo-captura-compacta');
+                let pron = card.getAttribute('data-pronostico') || '-';
+                ['1', 'X', '2'].forEach(s => {
+                    document.getElementById(`ofi-chk-${i}-${s}`).textContent = pron.includes(s) ? 'X' : '';
+                });
+            }
+
+            // 2. Rellenamos el Pleno al 15 (nombres en cajas blancas + cruz X en 0, 1, 2 o M)
+            let card15 = document.getElementById('card-partido-15');
+            if (card15) {
+                let texto15 = card15.querySelector('.equipos-info').childNodes[0].textContent.trim();
+                let partes15 = texto15.split(' vs ');
+                document.getElementById('ofi-local-15').textContent = partes15[0] || '';
+                document.getElementById('ofi-visitante-15').textContent = partes15[1] || '';
+
+                let selLocal = card15.querySelector('select[name="goles_local"]');
+                let selVis = card15.querySelector('select[name="goles_visitante"]');
+                let gL = selLocal ? selLocal.value : '-';
+                let gV = selVis ? selVis.value : '-';
+
+                ['0', '1', '2', 'M'].forEach(opcion => {
+                    document.getElementById(`ofi-p15-L-${opcion}`).textContent = (gL === opcion) ? 'X' : '';
+                    document.getElementById(`ofi-p15-V-${opcion}`).textContent = (gV === opcion) ? 'X' : '';
+                });
+            }
+
+            // 3. Capturamos el boleto oficial rellenado y lo descargamos como imagen JPG
+            let boletoOficial = document.getElementById('boleto-oficial-imprimir');
+            html2canvas(boletoOficial, {
+                scale: 2,
+                useCORS: true
+            }).then(canvas => {
                 let enlace = document.createElement('a');
-                enlace.download = 'boleto_recorte_busto.jpg';
-                enlace.href = canvas.toDataURL('image/jpeg', 0.92);
+                enlace.download = 'quiniela_oficial_pena_busto.jpg';
+                enlace.href = canvas.toDataURL('image/jpeg', 0.95);
                 enlace.click();
-            }).catch(() => {
-                area.classList.remove('modo-captura-compacta');
             });
         }
     </script>
