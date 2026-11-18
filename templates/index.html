@@ -504,8 +504,7 @@
         </div>
     </div>
 
-    <script>
-        function votarServidor(partidoNum, signo, callback) {
+    function votarServidor(partidoNum, signo, callback) {
             // 1. Leemos la tarjeta del partido y el nombre del peñista dueño de esa casilla
             let card = document.getElementById(`card-partido-${partidoNum}`);
             let responsable = card.getAttribute('data-responsable') || 'este peñista';
@@ -521,29 +520,48 @@
             let formData = new FormData();
             formData.append('partido_num', partidoNum);
             formData.append('signo', signo);
+            if (callback) {
+                formData.append('es_doble', '1'); // Avisamos al servidor de que este voto viene del panel de dobles
+            }
 
             fetch('/guardar_pronostico', {
                 method: 'POST',
                 body: formData
             }).then(response => {
                 if (response.ok) {
-                    let btn = document.getElementById(`btn-${partidoNum}-${signo}`);
                     let pronosticoActual = card.getAttribute('data-pronostico') || '-';
 
-                    if (pronosticoActual === '-' || pronosticoActual === '') {
-                        pronosticoActual = signo;
-                        if(btn) btn.classList.add('voto-activo');
-                    } else if (pronosticoActual.includes(signo)) {
-                        pronosticoActual = pronosticoActual.replace(signo, '');
-                        if(btn) btn.classList.remove('voto-activo');
-                        if(pronosticoActual === '') pronosticoActual = '-';
-                    } else if (pronosticoActual.length < 2) {
-                        pronosticoActual = [pronosticoActual, signo].sort().join('');
-                        if(btn) btn.classList.add('voto-activo');
+                    if (callback) {
+                        // Viene del panel de dobles: añadimos el segundo signo
+                        if (pronosticoActual === '-' || pronosticoActual === '') {
+                            pronosticoActual = signo;
+                        } else if (!pronosticoActual.includes(signo) && pronosticoActual.length < 2) {
+                            pronosticoActual = [pronosticoActual, signo].sort().join('');
+                        }
+                    } else {
+                        // Clic directo del titular: si pulsa el mismo lo desmarca; si pulsa otro distinto, sustituye el anterior
+                        if (pronosticoActual === signo) {
+                            pronosticoActual = '-';
+                        } else {
+                            pronosticoActual = signo;
+                        }
                     }
+
+                    // Encendemos solo los botones activos y apagamos el anterior automáticamente
+                    ['1', 'X', '2'].forEach(s => {
+                        let b = document.getElementById(`btn-${partidoNum}-${s}`);
+                        if (b) {
+                            if (pronosticoActual.includes(s)) {
+                                b.classList.add('voto-activo');
+                            } else {
+                                b.classList.remove('voto-activo');
+                            }
+                        }
+                    });
+
                     card.setAttribute('data-pronostico', pronosticoActual);
 
-                    // 🔄 AQUÍ ESTÁN LAS 5 LÍNEAS NUEVAS: Actualizan al instante el desplegable inferior
+                    // Actualizamos al instante el desplegable inferior de dobles
                     let optDesplegable = document.getElementById(`opt-partido-${partidoNum}`);
                     if (optDesplegable) {
                         let etiquetaSigno = (pronosticoActual === '-' || pronosticoActual === '') ? 'Sin marcar' : pronosticoActual;

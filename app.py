@@ -336,7 +336,7 @@ def inicio():
     )
 
 
-# 💾 GUARDAR PRONÓSTICO DESDE LA PORTADA (Con interruptor real de encender/apagar signo)
+# 💾 GUARDAR PRONÓSTICO DESDE LA PORTADA (El titular cambia de signo limpiamente)
 @app.route("/guardar_pronostico", methods=["POST"])
 def guardar_pronostico():
     num_partido = request.form.get("partido_num")
@@ -351,32 +351,42 @@ def guardar_pronostico():
         """, (request.form.get("goles_local"), request.form.get("goles_visitante")))
     else:
         sig = request.form.get("signo")
+        es_doble = request.form.get("es_doble") == "1"
+        
         if not sig:
             cursor.execute("UPDATE partidos SET pronostico = '-', doble_por = '', signo_doble = '' WHERE num_partido = ?", (num_partido,))
         else:
             sig = sig.strip().upper()
-            cursor.execute("SELECT pronostico FROM partidos WHERE num_partido = ?", (num_partido,))
+            cursor.execute("SELECT pronostico, signo_doble FROM partidos WHERE num_partido = ?", (num_partido,))
             fila = cursor.fetchone()
             act = (fila[0] if fila and fila[0] else "-").strip().upper()
+            sig_doble = (fila[1] if fila and fila[1] else "").strip().upper()
             
-            # 🔄 INTERRUPTOR REAL:
-            if act == "-" or act == "":
-                nuevo = sig
-            elif sig in act:
-                nuevo = act.replace(sig, "")
-                if nuevo == "":
-                    nuevo = "-"
-            elif len(act) < 2:
-                nuevo = "".join(sorted(act + sig))
+            if es_doble:
+                # Si viene del panel naranja de dobles, combinamos el signo existente + el signo del doble
+                if act == "-" or act == "":
+                    nuevo = sig
+                elif sig not in act:
+                    nuevo = "".join(sorted(act + sig))
+                else:
+                    nuevo = act
             else:
-                nuevo = act
-                
+                # Si es clic directo del titular en los botones 1X2:
+                if act == sig or (sig == act.replace(sig_doble, "") and sig != ""):
+                    # Si pulsa su mismo signo ya marcado, lo apaga (queda '-' o solo el del doblero)
+                    nuevo = sig_doble if sig_doble else "-"
+                else:
+                    # Si pulsa un signo diferente (ej: cambia de '1' a 'X'), sustituye el suyo y conserva el doble si lo hubiera
+                    if sig_doble and sig_doble != sig:
+                        nuevo = "".join(sorted(sig + sig_doble))
+                    else:
+                        nuevo = sig
+                        
             cursor.execute("UPDATE partidos SET pronostico = ? WHERE num_partido = ?", (nuevo, num_partido))
             
     conexion.commit()
     conexion.close()
     return redirect(url_for("inicio"))
-
 
 # 🔥 GUARDAR FIRMA Y SIGNO EXACTO DEL DOBLE DESDE LA PORTADA
 @app.route("/asignar_doble", methods=["POST"])
