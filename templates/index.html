@@ -527,13 +527,13 @@
         </div>
     </div>
 
-<!-- 🎫 PLANTILLA OCULTA DEL BOLETO OFICIAL PARA EXPORTAR A WHATSAPP (Calibración quirúrgica) -->
+<!-- 🎫 PLANTILLA OCULTA DEL BOLETO OFICIAL PARA EXPORTAR A WHATSAPP (Cruces grandes y centradas) -->
     <div id="contenedor-oculto-oficial" style="position: fixed; left: -9999px; top: 0;">
         <div id="boleto-oficial-imprimir" style="position: relative; width: 700px; height: 800px; font-family: Arial, sans-serif; background: white;">
             <!-- Imagen base de la quiniela vacía -->
             <img src="{{ url_for('static', filename='imagenes/quiniela_vacia.jpg') }}" style="width: 700px; height: 800px; display: block;" alt="Boleto Oficial">
             
-            <!-- Filas 1 a 14: Bajadas 2px (171px) para centrar filas 4, 5, 6 y 7 -->
+            <!-- Filas 1 a 14: Cruces ampliadas a 24px y centradas verticalmente con line-height: 1 -->
             {% for i in range(1, 15) %}
             {% set top_px = 171 + (i - 1) * 35.25 %}
             <div style="position: absolute; top: {{ top_px }}px; left: 74px; width: 612px; height: 32px; display: flex; align-items: center; font-weight: bold; font-size: 14px; color: #111;">
@@ -541,36 +541,36 @@
                 <div id="ofi-local-{{ i }}" style="width: 248px; padding-left: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"></div>
                 <!-- Hueco Equipo Visitante -->
                 <div id="ofi-visitante-{{ i }}" style="width: 254px; padding-left: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"></div>
-                <!-- Cuadraditos 1 X 2 -->
-                <div style="width: 105px; display: flex; justify-content: space-between; align-items: center; padding-left: 8px; padding-right: 4px; font-size: 19px; font-weight: 900; color: #b71c1c;">
-                    <span id="ofi-chk-{{ i }}-1" style="width: 22px; text-align: center;"></span>
-                    <span id="ofi-chk-{{ i }}-X" style="width: 22px; text-align: center;"></span>
-                    <span id="ofi-chk-{{ i }}-2" style="width: 22px; text-align: center;"></span>
+                <!-- Cuadraditos 1 X 2 con cruces más grandes (24px) -->
+                <div style="width: 105px; display: flex; justify-content: space-between; align-items: center; padding-left: 7px; padding-right: 3px; font-size: 24px; line-height: 1; font-weight: 900; color: #b71c1c;">
+                    <span id="ofi-chk-{{ i }}-1" style="width: 24px; text-align: center;"></span>
+                    <span id="ofi-chk-{{ i }}-X" style="width: 24px; text-align: center;"></span>
+                    <span id="ofi-chk-{{ i }}-2" style="width: 24px; text-align: center;"></span>
                 </div>
             </div>
             {% endfor %}
 
-            <!-- Fila 15: PLENO AL 15 (Visitante ajustado 1px a la izquierda: 182px) -->
+            <!-- Fila 15: PLENO AL 15 con cruces ampliadas a 23px -->
             <div style="position: absolute; top: 730px; left: 72px; width: 627px; height: 36px; display: flex; align-items: center; font-weight: bold; font-size: 13px; color: #111;">
                 <!-- Nombre Equipo Local 15 -->
                 <div id="ofi-local-15" style="width: 136px; padding: 0 4px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"></div>
                 <!-- 4 Cuadraditos Local: 0 1 2 M -->
-                <div style="width: 135px; display: flex; justify-content: space-between; align-items: center; padding-left: 8px; padding-right: 4px; font-size: 19px; font-weight: 900; color: #b71c1c;">
-                    <span id="ofi-p15-L-0" style="width: 22px; text-align: center;"></span>
-                    <span id="ofi-p15-L-1" style="width: 22px; text-align: center;"></span>
-                    <span id="ofi-p15-L-2" style="width: 22px; text-align: center;"></span>
-                    <span id="ofi-p15-L-M" style="width: 22px; text-align: center;"></span>
+                <div style="width: 135px; display: flex; justify-content: space-between; align-items: center; padding-left: 7px; padding-right: 3px; font-size: 23px; line-height: 1; font-weight: 900; color: #b71c1c;">
+                    <span id="ofi-p15-L-0" style="width: 24px; text-align: center;"></span>
+                    <span id="ofi-p15-L-1" style="width: 24px; text-align: center;"></span>
+                    <span id="ofi-p15-L-2" style="width: 24px; text-align: center;"></span>
+                    <span id="ofi-p15-L-M" style="width: 24px; text-align: center;"></span>
                 </div>
                 <!-- Espacio para el guion central '-' -->
                 <div style="width: 18px;"></div>
-                <!-- Nombre Equipo Visitante 15 (182px para retroceder 1px hacia la izquierda) -->
+                <!-- Nombre Equipo Visitante 15 -->
                 <div id="ofi-visitante-15" style="width: 182px; padding: 0 4px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"></div>
                 <!-- 4 Cuadraditos Visitante: 0 1 2 M -->
-                <div style="width: 135px; display: flex; justify-content: space-between; align-items: center; padding-left: 8px; padding-right: 4px; font-size: 19px; font-weight: 900; color: #b71c1c;">
-                    <span id="ofi-p15-V-0" style="width: 22px; text-align: center;"></span>
-                    <span id="ofi-p15-V-1" style="width: 22px; text-align: center;"></span>
-                    <span id="ofi-p15-V-2" style="width: 22px; text-align: center;"></span>
-                    <span id="ofi-p15-V-M" style="width: 22px; text-align: center;"></span>
+                <div style="width: 135px; display: flex; justify-content: space-between; align-items: center; padding-left: 7px; padding-right: 3px; font-size: 23px; line-height: 1; font-weight: 900; color: #b71c1c;">
+                    <span id="ofi-p15-V-0" style="width: 24px; text-align: center;"></span>
+                    <span id="ofi-p15-V-1" style="width: 24px; text-align: center;"></span>
+                    <span id="ofi-p15-V-2" style="width: 24px; text-align: center;"></span>
+                    <span id="ofi-p15-V-M" style="width: 24px; text-align: center;"></span>
                 </div>
             </div>
         </div>
