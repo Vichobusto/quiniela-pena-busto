@@ -80,7 +80,6 @@ def verificar_y_actualizar_base_datos():
     )
     """)
     
-    # Migración segura: añadimos columna 'texto' a configuracion si no existía
     if es_postgres:
         cursor.execute("ALTER TABLE configuracion ADD COLUMN IF NOT EXISTS texto TEXT DEFAULT ''")
         cursor.execute("INSERT INTO configuracion (clave, valor, texto) VALUES ('jornada', 1, '') ON CONFLICT (clave) DO NOTHING")
@@ -125,7 +124,7 @@ def verificar_y_actualizar_base_datos():
         if "pronosticador_manual" not in cols:
             cursor.execute("ALTER TABLE partidos ADD COLUMN pronosticador_manual TEXT DEFAULT ''")
         
-    # 3. Tabla de HISTORIAL DE JORNADAS
+    # 3. Tabla de HISTORIAL DE JORNADAS (Con columna signo_doble añadida)
     cursor.execute(f"""
     CREATE TABLE IF NOT EXISTS historial_jornadas (
         id {tipo_id},
@@ -136,6 +135,7 @@ def verificar_y_actualizar_base_datos():
         division TEXT NOT NULL,
         pronosticador TEXT NOT NULL,
         doble_por TEXT DEFAULT '',
+        signo_doble TEXT DEFAULT '',
         pronostico TEXT DEFAULT '-',
         resultado_real TEXT DEFAULT '-',
         pleno_local TEXT DEFAULT '-',
@@ -144,6 +144,15 @@ def verificar_y_actualizar_base_datos():
         pleno_visitante_real TEXT DEFAULT '-'
     )
     """)
+
+    # Migración segura: añade signo_doble al historial sin borrar jornadas ya guardadas
+    if es_postgres:
+        cursor.execute("ALTER TABLE historial_jornadas ADD COLUMN IF NOT EXISTS signo_doble TEXT DEFAULT ''")
+    else:
+        cursor.execute("PRAGMA table_info(historial_jornadas)")
+        cols_hist = [c[1] for c in cursor.fetchall()]
+        if "signo_doble" not in cols_hist:
+            cursor.execute("ALTER TABLE historial_jornadas ADD COLUMN signo_doble TEXT DEFAULT ''")
     
     # 4. Tabla de usuarios (Plantilla oficial de los 28 peñistas)
     cursor.execute(f"""
@@ -199,7 +208,6 @@ def obtener_reparto_equitativo(cursor):
     dobleros_auto_6 = [u[0] for u in lista_ordenada[14:20]]
     pleno_15_resp = lista_ordenada[20][0] if len(lista_ordenada) > 20 else lista_ordenada[0][0]
     
-    # Comprobamos si el admin ha elegido manualmente los 6 dobleros
     dobleros_manuales = []
     for d in range(1, 7):
         cursor.execute("SELECT texto FROM configuracion WHERE clave = ?", (f"doblero_manual_{d}",))
@@ -207,7 +215,6 @@ def obtener_reparto_equitativo(cursor):
         if fila and fila[0] and fila[0].strip() != "":
             dobleros_manuales.append(fila[0].strip())
             
-    # Si hay dobleros elegidos manualmente, prevalecen sobre los automáticos
     dobleros_6 = dobleros_manuales if len(dobleros_manuales) > 0 else dobleros_auto_6
     
     convocados_21 = [{"nombre": u[0], "partidos": u[1]} for u in lista_ordenada[:21]]
@@ -243,18 +250,42 @@ def inicio():
     if jornada_viendo != jornada_activa and jornada_viendo in jornadas_hist:
         es_pasado = True
         cursor.execute("""
-            SELECT num_partido, local, visitante, division, pronosticador, doble_por, pronostico, 
+            SELECT num_partido, local, visitante, division, pronosticador, doble_por, signo_doble, pronostico, 
                    resultado_real, pleno_local, pleno_visitante, pleno_local_real, pleno_visitante_real
             FROM historial_jornadas WHERE jornada = ? ORDER BY num_partido ASC
         """, (jornada_viendo,))
         for p in cursor.fetchall():
-            lista_dobles = [p[5]] if (p[5] and p[5] != "") else []
+            num_p = p[0]
+            titular_p = p[4] or ""
+            doblero_p = p[5] or ""
+            sig_doble_p = (p[6] or "").strip().upper()
+            pron_p = (p[7] or "-").strip().upper()
+            real_p = (p[8] or "-").strip().upper()
+            pleno_l_p, pleno_v_p = p[9], p[10]
+            pleno_lr_p, pleno_vr_p = p[11], p[12]
+
+            # Calculamos exactamente quién acertó el partido para mostrarlo en pequeño
+            acertante_texto = ""
+            if num_p <= 14 and real_p != "-" and real_p in pron_p:
+                if doblero_p and sig_doble_p:
+                    if real_p == sig_doble_p:
+                        acertante_texto = f"Acertó: {doblero_p} (Doble)"
+                    else:
+                        acertante_texto = f"Acertó: {titular_p}"
+                elif not doblero_p:
+                    acertante_texto = f"Acertó: {titular_p}"
+            elif num_p == 15 and pleno_lr_p != "-" and pleno_vr_p != "-":
+                if pleno_l_p == pleno_lr_p and pleno_v_p == pleno_vr_p:
+                    acertante_texto = f"Acertó: {titular_p}"
+
+            lista_dobles = [doblero_p] if doblero_p != "" else []
             partidos_limpios.append({
-                "num": p[0], "local": p[1], "visitante": p[2], "division": p[3],
-                "pronosticador": p[4], "doble_por": p[5], "dobles": lista_dobles,
-                "pronostico": p[6], "resultado_real": p[7],
-                "pleno_local": p[8], "pleno_visitante": p[9],
-                "pleno_local_real": p[10], "pleno_visitante_real": p[11]
+                "num": num_p, "local": p[1], "visitante": p[2], "division": p[3],
+                "pronosticador": titular_p, "doble_por": doblero_p, "dobles": lista_dobles,
+                "pronostico": pron_p, "resultado_real": real_p,
+                "pleno_local": pleno_l_p, "pleno_visitante": pleno_v_p,
+                "pleno_local_real": pleno_lr_p, "pleno_visitante_real": pleno_vr_p,
+                "acertante_texto": acertante_texto
             })
     else:
         cursor.execute("""
@@ -276,13 +307,12 @@ def inicio():
                 "pronostico": p[5] if p[5] else "-", "resultado_real": p[6] if p[6] else "-",
                 "pleno_local": p[7], "pleno_visitante": p[8],
                 "pleno_local_real": p[9], "pleno_visitante_real": p[10],
-                "signo_doble": p[11]
+                "signo_doble": p[11], "acertante_texto": ""
             }
             if p[5] and p[5].strip().upper() == "X":
                 partido["pronostico"] = "X"
             partidos_limpios.append(partido)
             
-        # 🔄 RECALCULAR CONVOCADOS REALES: Incluye siempre los 15 titulares actuales + los 6 dobleros activos
         cursor.execute("SELECT nombre, partidos_asignados FROM usuarios ORDER BY partidos_asignados ASC, id ASC")
         todos_usuarios = cursor.fetchall()
         nombres_convocados = []
@@ -292,7 +322,7 @@ def inicio():
         convocados_21 = [{"nombre": u[0], "partidos": u[1]} for u in todos_usuarios if u[0] in nombres_convocados]
         descansan_7 = [{"nombre": u[0], "partidos": u[1]} for u in todos_usuarios if u[0] not in nombres_convocados]
     
-    # 📊 CÁLCULO DE CLASIFICACIÓN POR RATIO (Aciertos / Errores hasta 3 decimales)
+    # 📊 CÁLCULO DE CLASIFICACIÓN POR RATIO
     cursor.execute("SELECT nombre, aciertos, errores FROM usuarios")
     usuarios_db = cursor.fetchall()
     
@@ -302,7 +332,6 @@ def inicio():
         aciertos = u[1] or 0
         errores = u[2] or 0
         
-        # Seguro matemático: si errores > 0 dividimos aciertos/errores; si errores == 0 usamos aciertos
         if errores > 0:
             ratio_valor = aciertos / errores
         else:
@@ -313,10 +342,9 @@ def inicio():
             "aciertos": aciertos,
             "errores": errores,
             "ratio_num": ratio_valor,
-            "ratio_texto": f"{ratio_valor:.3f}".replace(".", ",") # Ejemplo: 5/3 -> 1,667
+            "ratio_texto": f"{ratio_valor:.3f}".replace(".", ",")
         })
         
-    # Ordenamos de mayor a menor ratio; en caso de empate exacto, por más aciertos y menos errores
     peñistas_lista.sort(key=lambda x: (x["ratio_num"], x["aciertos"], -x["errores"]), reverse=True)
     
     conexion.close()
@@ -336,7 +364,7 @@ def inicio():
     )
 
 
-# 💾 GUARDAR PRONÓSTICO DESDE LA PORTADA (El titular cambia de signo limpiamente)
+# 💾 GUARDAR PRONÓSTICO DESDE LA PORTADA
 @app.route("/guardar_pronostico", methods=["POST"])
 def guardar_pronostico():
     num_partido = request.form.get("partido_num")
@@ -363,7 +391,6 @@ def guardar_pronostico():
             sig_doble = (fila[1] if fila and fila[1] else "").strip().upper()
             
             if es_doble:
-                # Si viene del panel naranja de dobles, combinamos el signo existente + el signo del doble
                 if act == "-" or act == "":
                     nuevo = sig
                 elif sig not in act:
@@ -371,12 +398,9 @@ def guardar_pronostico():
                 else:
                     nuevo = act
             else:
-                # Si es clic directo del titular en los botones 1X2:
                 if act == sig or (sig == act.replace(sig_doble, "") and sig != ""):
-                    # Si pulsa su mismo signo ya marcado, lo apaga (queda '-' o solo el del doblero)
                     nuevo = sig_doble if sig_doble else "-"
                 else:
-                    # Si pulsa un signo diferente (ej: cambia de '1' a 'X'), sustituye el suyo y conserva el doble si lo hubiera
                     if sig_doble and sig_doble != sig:
                         nuevo = "".join(sorted(sig + sig_doble))
                     else:
@@ -387,6 +411,7 @@ def guardar_pronostico():
     conexion.commit()
     conexion.close()
     return redirect(url_for("inicio"))
+
 
 # 🔥 GUARDAR FIRMA Y SIGNO EXACTO DEL DOBLE DESDE LA PORTADA
 @app.route("/asignar_doble", methods=["POST"])
@@ -403,14 +428,13 @@ def asignar_doble():
     return "OK", 200
 
 
-# 🧹 QUITAR SOLO EL DOBLE DE UN PARTIDO ANTIGUO (Respetando el signo del titular)
+# 🧹 QUITAR SOLO EL DOBLE DE UN PARTIDO ANTIGUO
 @app.route("/quitar_doble", methods=["POST"])
 def quitar_doble():
     partido = request.form.get("partido")
     conexion = conectar_bd()
     cursor = conexion.cursor()
     
-    # 1. Consultamos el pronóstico actual y cuál fue el signo exacto que puso el doblero
     cursor.execute("SELECT pronostico, signo_doble FROM partidos WHERE num_partido = ?", (partido,))
     fila = cursor.fetchone()
     
@@ -419,7 +443,6 @@ def quitar_doble():
         actual = (fila[0] or "-").strip().upper()
         sig_doble = (fila[1] or "").strip().upper()
         
-        # 2. Si sabemos cuál era el signo del doble, lo restamos dejando intacto el del titular
         if sig_doble and sig_doble in actual:
             pronostico_restante = actual.replace(sig_doble, "")
             if pronostico_restante == "":
@@ -427,7 +450,6 @@ def quitar_doble():
         else:
             pronostico_restante = actual
             
-    # 3. Actualizamos la base de datos manteniendo el signo del titular y limpiando la firma del doble
     cursor.execute("""
         UPDATE partidos 
         SET pronostico = ?, doble_por = '', signo_doble = '' 
@@ -481,7 +503,6 @@ def admin_panel():
     """)
     partidos = cursor.fetchall()
     
-    # Leemos los 6 dobleros elegidos manualmente para mostrarlos seleccionados en /admin
     dobleros_seleccionados = []
     for d in range(1, 7):
         cursor.execute("SELECT texto FROM configuracion WHERE clave = ?", (f"doblero_manual_{d}",))
@@ -511,7 +532,6 @@ def asignar_pronosticadores():
     conexion = conectar_bd()
     cursor = conexion.cursor()
     
-    # 1. Guardamos los 15 titulares
     for i in range(1, 16):
         peñista_elegido = request.form.get(f"pronosticador_{i}", "").strip()
         cursor.execute("""
@@ -520,7 +540,6 @@ def asignar_pronosticadores():
             WHERE num_partido = ?
         """, (peñista_elegido, i))
         
-    # 2. Guardamos solo los 6 nombres de quienes ponen doble (para que luego ellos los pongan en la portada)
     for d in range(1, 7):
         peñista_doble = request.form.get(f"doble_penista_{d}", "").strip()
         cursor.execute("""
@@ -720,13 +739,13 @@ def cerrar_jornada():
         if quien_doble:
             participantes_reales_jornada.add(quien_doble)
         
-        # 1. Guardamos la foto de este partido en el ÁLBUM HISTÓRICO PERMANENTE
+        # 1. Guardamos la foto de este partido en el ÁLBUM HISTÓRICO PERMANENTE (con signo_doble incluido)
         cursor.execute("""
             INSERT INTO historial_jornadas (
-                jornada, num_partido, local, visitante, division, pronosticador, doble_por, 
+                jornada, num_partido, local, visitante, division, pronosticador, doble_por, signo_doble,
                 pronostico, resultado_real, pleno_local, pleno_visitante, pleno_local_real, pleno_visitante_real
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (jornada_actual, num, local, visitante, division, responsable, quien_doble, 
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (jornada_actual, num, local, visitante, division, responsable, quien_doble, signo_del_doble,
               pronostico_pena, resultado_tele, pleno_l, pleno_v, pleno_l_real, pleno_v_real))
         
         # 2. Calculamos aciertos y errores (Partidos 1-14 = 1 punto; Pleno al 15 exacto = 2 puntos)
@@ -755,7 +774,7 @@ def cerrar_jornada():
             else:
                 cursor.execute("UPDATE usuarios SET errores = errores + 1 WHERE nombre = ?", (responsable,))
                 
-    # 3. Sumamos +1 partido asignado a quienes realmente participaron (21 convocados)
+    # 3. Sumamos +1 partido asignado a quienes realmente participaron
     hay_manuales = any((p[12] or "").strip() != "" for p in partidos)
     if hay_manuales:
         for nombre_part in participantes_reales_jornada:

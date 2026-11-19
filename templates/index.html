@@ -358,7 +358,7 @@
 
                     <div class="zona-voto">
                         {% if es_pasado %}
-                            <div style="display: flex; flex-direction: column; align-items: center; gap: 5px;">
+                            <div style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
                                 <span class="pleno-display" style="font-size: 0.9rem; padding: 5px 10px;">
                                     Apuesta: {{ part.pronostico if part.num != 15 else part.pleno_local ~ '-' ~ part.pleno_visitante }}
                                 </span>
@@ -367,10 +367,21 @@
                                     <span style="font-size: 0.85rem; font-weight: bold; padding: 4px 10px; border-radius: 6px; color: white; background: {{ '#2e7d32' if acertado else '#c62828' if part.resultado_real != '-' else '#7f8c8d' }};">
                                         Real: {{ part.resultado_real }} {{ '✅' if acertado else '❌' if part.resultado_real != '-' else '' }}
                                     </span>
+                                    <!-- 🏷️ ETIQUETA EN PEQUEÑO CON EL NOMBRE DEL ACERTANTE EXACTO -->
+                                    {% if acertado and part.acertante_texto %}
+                                        <span style="font-size: 0.72rem; font-weight: 800; color: #1b5e20; background: #e8f5e9; padding: 2px 7px; border-radius: 4px; border: 1px solid #a5d6a7;">
+                                            {{ part.acertante_texto }}
+                                        </span>
+                                    {% endif %}
                                 {% else %}
                                     <span style="font-size: 0.85rem; font-weight: bold; padding: 4px 10px; border-radius: 6px; color: white; background: #2c3e50;">
                                         Real: {{ part.pleno_local_real }}-{{ part.pleno_visitante_real }}
                                     </span>
+                                    {% if part.acertante_texto %}
+                                        <span style="font-size: 0.72rem; font-weight: 800; color: #1b5e20; background: #e8f5e9; padding: 2px 7px; border-radius: 4px; border: 1px solid #a5d6a7;">
+                                            {{ part.acertante_texto }}
+                                        </span>
+                                    {% endif %}
                                 {% endif %}
                             </div>
                         {% else %}
