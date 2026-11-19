@@ -472,6 +472,7 @@
                     <tr>
                         <th>Pos</th>
                         <th>Peñista</th>
+                        <th title="Jornadas participadas">Jor.</th>
                         <th>⚽</th>
                         <th>🟥</th>
                         <th>Ratio</th>
@@ -482,6 +483,7 @@
                     <tr class="{% if loop.index == 1 %}podio-1{% elif loop.index == 2 %}podio-2{% elif loop.index == 3 %}podio-3{% endif %}">
                         <td>{% if loop.index == 1 %}🥇 1º{% elif loop.index == 2 %}🥈 2º{% elif loop.index == 3 %}🥉 3º{% else %}{{ loop.index }}º{% endif %}</td>
                         <td><strong>{{ p.nombre }}</strong></td>
+                        <td style="color:#0d47a1; font-weight:bold;">{{ p.jornadas }}</td>
                         <td style="color:#2e7d32; font-weight:bold;">{{ p.aciertos }}</td>
                         <td style="color:#c62828;">{{ p.errores }}</td>
                         <td style="color:#1b5e20; font-weight:900;">{{ p.ratio_texto }}</td>
@@ -489,7 +491,7 @@
                     {% endfor %}
                 </tbody>
             </table>
-        </div>
+        </div>  
     </div>
 
     <div class="zona-convocatoria">

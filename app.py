@@ -322,8 +322,8 @@ def inicio():
         convocados_21 = [{"nombre": u[0], "partidos": u[1]} for u in todos_usuarios if u[0] in nombres_convocados]
         descansan_7 = [{"nombre": u[0], "partidos": u[1]} for u in todos_usuarios if u[0] not in nombres_convocados]
     
-    # 📊 CÁLCULO DE CLASIFICACIÓN POR RATIO
-    cursor.execute("SELECT nombre, aciertos, errores FROM usuarios")
+    # 📊 CÁLCULO DE CLASIFICACIÓN POR RATIO Y JORNADAS PARTICIPADAS
+    cursor.execute("SELECT nombre, aciertos, errores, partidos_asignados FROM usuarios")
     usuarios_db = cursor.fetchall()
     
     peñistas_lista = []
@@ -331,6 +331,15 @@ def inicio():
         nombre = u[0]
         aciertos = u[1] or 0
         errores = u[2] or 0
+        
+        # Contamos en cuántas jornadas distintas del historial participó (como titular o como doble)
+        cursor.execute("""
+            SELECT COUNT(DISTINCT jornada) 
+            FROM historial_jornadas 
+            WHERE pronosticador = ? OR doble_por = ?
+        """, (nombre, nombre))
+        fila_jor = cursor.fetchone()
+        jornadas_jugadas = fila_jor[0] if fila_jor else 0
         
         if errores > 0:
             ratio_valor = aciertos / errores
@@ -341,6 +350,7 @@ def inicio():
             "nombre": nombre,
             "aciertos": aciertos,
             "errores": errores,
+            "jornadas": jornadas_jugadas,
             "ratio_num": ratio_valor,
             "ratio_texto": f"{ratio_valor:.3f}".replace(".", ",")
         })
