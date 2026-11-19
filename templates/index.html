@@ -18,7 +18,7 @@
             --doble-color: #e65100;
         }
 
-        /* 🛡️ REGLA DE SEGURIDAD CORREGIDA (*): Evita que ningún elemento empuje la pantalla hacia los lados */
+        /* 🛡️ REGLA DE SEGURIDAD (*): Evita que ningún elemento empuje la pantalla hacia los lados */
         * {
             box-sizing: border-box;
         }
@@ -281,32 +281,6 @@
         .lista-dobleros { display: flex; gap: 8px; list-style: none; padding: 0; margin: 10px 0 20px 0; flex-wrap: wrap; }
         .lista-dobleros li { background: #ffe0b2; color: var(--doble-color); padding: 6px 14px; border-radius: 20px; font-weight: bold; font-size: 0.9rem; border: 1px solid #ffb74d; }
 
-        /* 📸 MODO COMPACTO EXCLUSIVO PARA LA CAPTURA DE WHATSAPP (Mitad de altura en 2 columnas) */
-        .modo-captura-compacta {
-            width: 820px !important;
-            max-width: 820px !important;
-            display: grid !important;
-            grid-template-columns: 1fr 1fr !important;
-            gap: 8px !important;
-            padding: 12px !important;
-        }
-        .modo-captura-compacta .partido-card {
-            display: flex !important;
-            flex-direction: row !important;
-            align-items: center !important;
-            justify-content: space-between !important;
-            padding: 8px 10px !important;
-            gap: 8px !important;
-            border-radius: 8px !important;
-        }
-        .modo-captura-compacta .partido-num { font-size: 1rem !important; min-width: 22px !important; }
-        .modo-captura-compacta .badge-div { display: none !important; }
-        .modo-captura-compacta .equipos-info { font-size: 0.88rem !important; text-align: left !important; flex: 1 !important; line-height: 1.2 !important; }
-        .modo-captura-compacta .nombre-responsable { font-size: 0.78rem !important; margin-top: 2px !important; display: inline-block !important; }
-        .modo-captura-compacta .dobles-tag { font-size: 0.75rem !important; }
-        .modo-captura-compacta .zona-voto { margin-top: 0 !important; }
-        .modo-captura-compacta .btn-premium { width: 28px !important; height: 28px !important; font-size: 0.85rem !important; border-radius: 6px !important; }
-
         /* 📱 DISEÑO RESPONSIVO EXCLUSIVO PARA MÓVILES Y TABLETS */
         @media (max-width: 900px) {
             body { padding: 10px; }
@@ -528,7 +502,7 @@
         </div>
     </div>
 
-<!-- 🎫 PLANTILLA OCULTA DEL BOLETO OFICIAL PARA EXPORTAR A WHATSAPP (Letra +3px y calibración final) -->
+    <!-- 🎫 PLANTILLA OCULTA DEL BOLETO OFICIAL PARA EXPORTAR A WHATSAPP (Letra +3px y calibración final) -->
     <div id="contenedor-oculto-oficial" style="position: fixed; left: -9999px; top: 0;">
         <div id="boleto-oficial-imprimir" style="position: relative; width: 700px; height: 800px; font-family: Arial, sans-serif; background: white;">
             <!-- Imagen base de la quiniela vacía -->
@@ -577,8 +551,8 @@
             </div>
         </div>
     </div>
-    </div>
-    <!-- ⚡ ETIQUETA <script> RESTAURADA PARA QUE FUNCIONEN TODOS LOS CLICS -->
+
+    <!-- ⚡ ETIQUETA <script> CORREGIDA SIN ERRORES DE SINTAXIS -->
     <script>
         function votarServidor(partidoNum, signo, callback) {
             let card = document.getElementById(`card-partido-${partidoNum}`);
@@ -643,9 +617,9 @@
             });
         }
 
-       function actualizarPartidosDisponibles() {
+        function actualizarPartidosDisponibles() {
             let nombreElegido = document.getElementById('select-doblero-nombre').value;
-            let tieneDoblePuesto = false;
+            let partidoActualDoblero = null;
             
             for (let i = 1; i <= 14; i++) {
                 let card = document.getElementById(`card-partido-${i}`);
@@ -661,17 +635,20 @@
                 }
 
                 if (firmados.includes(nombreElegido)) {
-                    tieneDoblePuesto = true;
+                    partidoActualDoblero = i;
                 }
             }
 
-            // Solo habilitamos "Quitar mi doble" si ese compañero ya tiene un doble puesto actualmente
+            // Habilitamos y personalizamos la opción "Quitar mi doble / Dejar en blanco" si ese compañero ya tiene uno puesto
             let optQuitar = document.getElementById('opt-quitar-doble');
             if (optQuitar) {
-                optQuitar.disabled = !tieneDoblePuesto;
-                optQuitar.text = tieneDoblePuesto 
-                    ? "🚫 Quitar mi doble / Dejar en blanco" 
-                    : "🚫 Quitar mi doble (Aún no has puesto ninguno)";
+                if (partidoActualDoblero) {
+                    optQuitar.disabled = false;
+                    optQuitar.text = `🚫 Quitar mi doble (Partido ${partidoActualDoblero}) / Dejar en blanco`;
+                } else {
+                    optQuitar.disabled = true;
+                    optQuitar.text = "🚫 Quitar mi doble (Aún no has puesto ninguno)";
+                }
             }
 
             document.getElementById('zona-botones-doble').style.display = 'none';
@@ -777,7 +754,7 @@
 
         function sellarDobleDesdePanel(signoElegido) {
             let nombrePeñista = document.getElementById('select-doblero-nombre').value;
-            let partidoNuevoNum = docum ent.getElementById('select-doblero-partido').value;
+            let partidoNuevoNum = document.getElementById('select-doblero-partido').value;
 
             if (!nombrePeñista) { alert("Por favor, selecciona tu nombre."); return; }
 
@@ -815,8 +792,7 @@
                                 badgeDoblero.innerHTML = `✅ ${nombrePeñista}`;
                             }
                             
-                            document.getElementById('zona-botones-doble').style.display = 'none';
-                            document.getElementById('select-doblero-partido').value = "";
+                            actualizarPartidosDisponibles();
                             alert(`¡Perfecto! El doble de ${nombrePeñista} se ha guardado en el partido ${partidoNuevoNum}.`);
                         });
                     }
