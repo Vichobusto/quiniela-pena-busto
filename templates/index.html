@@ -461,6 +461,7 @@
                     
                     <select id="select-doblero-partido" class="select-premium" style="width: 100%;" onchange="mostrarOpcionesDoble()" required>
                         <option value="" disabled selected>2º Elige la casilla a doblar...</option>
+                        <option value="NINGUNO" id="opt-quitar-doble" style="color: #b71c1c; font-weight: bold;">🚫 Quitar mi doble / Dejar en blanco</option>
                         {% for part in partidos if part.num != 15 %}
                             <option value="{{ part.num }}" id="opt-partido-{{ part.num }}">
                                 Partido {{ part.num }}: {{ part.local }} vs {{ part.visitante }} — [{{ part.pronostico if part.pronostico != '-' else 'Sin marcar' }}]
@@ -642,8 +643,9 @@
             });
         }
 
-        function actualizarPartidosDisponibles() {
+       function actualizarPartidosDisponibles() {
             let nombreElegido = document.getElementById('select-doblero-nombre').value;
+            let tieneDoblePuesto = false;
             
             for (let i = 1; i <= 14; i++) {
                 let card = document.getElementById(`card-partido-${i}`);
@@ -657,15 +659,106 @@
                     option.disabled = false;
                     option.text = option.text.replace(" (AGOTADO)", "");
                 }
+
+                if (firmados.includes(nombreElegido)) {
+                    tieneDoblePuesto = true;
+                }
             }
+
+            // Solo habilitamos "Quitar mi doble" si ese compañero ya tiene un doble puesto actualmente
+            let optQuitar = document.getElementById('opt-quitar-doble');
+            if (optQuitar) {
+                optQuitar.disabled = !tieneDoblePuesto;
+                optQuitar.text = tieneDoblePuesto 
+                    ? "🚫 Quitar mi doble / Dejar en blanco" 
+                    : "🚫 Quitar mi doble (Aún no has puesto ninguno)";
+            }
+
             document.getElementById('zona-botones-doble').style.display = 'none';
             document.getElementById('select-doblero-partido').value = "";
         }
 
         function mostrarOpcionesDoble() {
+            let nombrePeñista = document.getElementById('select-doblero-nombre').value;
             let partidoSeleccionado = document.getElementById('select-doblero-partido').value;
             let zonaBotones = document.getElementById('zona-botones-doble');
+            
             if (!partidoSeleccionado) return;
+
+            // 🧹 Si elige "Quitar mi doble / Dejar en blanco", localizamos su partido y borramos SOLO su doble
+            if (partidoSeleccionado === 'NINGUNO') {
+                zonaBotones.style.display = 'none';
+                if (!nombrePeñista) {
+                    alert("Por favor, selecciona primero tu nombre arriba.");
+                    document.getElementById('select-doblero-partido').value = "";
+                    return;
+                }
+
+                let partidoDelDoblero = null;
+                for (let i = 1; i <= 14; i++) {
+                    let cardCheck = document.getElementById(`card-partido-${i}`);
+                    let firmadosCheck = cardCheck.getAttribute('data-dobles-firmados') || '';
+                    if (firmadosCheck.includes(nombrePeñista)) {
+                        partidoDelDoblero = i;
+                        break;
+                    }
+                }
+
+                if (!partidoDelDoblero) {
+                    alert(`${nombrePeñista}, todavía no tienes ningún doble guardado.`);
+                    document.getElementById('select-doblero-partido').value = "";
+                    return;
+                }
+
+                if (!confirm(`🚫 ${nombrePeñista}, ¿seguro que quieres quitar tu doble del Partido ${partidoDelDoblero} y dejarlo en blanco?`)) {
+                    document.getElementById('select-doblero-partido').value = "";
+                    return;
+                }
+
+                let fdQuitar = new FormData();
+                fdQuitar.append('partido', partidoDelDoblero);
+
+                fetch('/quitar_doble', { method: 'POST', body: fdQuitar })
+                    .then(res => res.text())
+                    .then(pronosticoTitularRestante => {
+                        let cardAntigua = document.getElementById(`card-partido-${partidoDelDoblero}`);
+                        cardAntigua.setAttribute('data-dobles-firmados', '');
+                        cardAntigua.setAttribute('data-pronostico', pronosticoTitularRestante);
+                        document.getElementById(`txt-dobles-${partidoDelDoblero}`).innerHTML = '-';
+
+                        // Dejamos encendido únicamente el botón del titular (o ninguno si no había marcado)
+                        ['1', 'X', '2'].forEach(s => {
+                            let btn = document.getElementById(`btn-${partidoDelDoblero}-${s}`);
+                            if (btn) {
+                                if (pronosticoTitularRestante.includes(s)) {
+                                    btn.classList.add('voto-activo');
+                                } else {
+                                    btn.classList.remove('voto-activo');
+                                }
+                            }
+                        });
+
+                        // Actualizamos el texto entre corchetes en el desplegable
+                        let optDesplegable = document.getElementById(`opt-partido-${partidoDelDoblero}`);
+                        if (optDesplegable) {
+                            let etiquetaSigno = (pronosticoTitularRestante === '-' || pronosticoTitularRestante === '') ? 'Sin marcar' : pronosticoTitularRestante;
+                            optDesplegable.text = optDesplegable.text.replace(/— \[.*?\]/, `— [${etiquetaSigno}]`);
+                        }
+
+                        // Devolvemos su chapa superior de verde (✅) a naranja pendiente (⏳)
+                        let badgeDoblero = document.getElementById(`badge-doblero-${nombrePeñista}`);
+                        if (badgeDoblero) {
+                            badgeDoblero.style.background = '#ffe0b2';
+                            badgeDoblero.style.color = 'var(--doble-color)';
+                            badgeDoblero.style.borderColor = '#ffb74d';
+                            badgeDoblero.innerHTML = `⏳ ${nombrePeñista}`;
+                        }
+
+                        actualizarPartidosDisponibles();
+                        alert(`✅ Doble eliminado. El Partido ${partidoDelDoblero} conserva solo el pronóstico del titular y tu doble queda en blanco.`);
+                    });
+                return;
+            }
 
             let card = document.getElementById(`card-partido-${partidoSeleccionado}`);
             let pronosticoActual = card.getAttribute('data-pronostico') || '-';
@@ -684,7 +777,7 @@
 
         function sellarDobleDesdePanel(signoElegido) {
             let nombrePeñista = document.getElementById('select-doblero-nombre').value;
-            let partidoNuevoNum = document.getElementById('select-doblero-partido').value;
+            let partidoNuevoNum = docum ent.getElementById('select-doblero-partido').value;
 
             if (!nombrePeñista) { alert("Por favor, selecciona tu nombre."); return; }
 
