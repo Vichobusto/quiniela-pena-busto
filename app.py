@@ -729,7 +729,7 @@ def cerrar_jornada():
         """, (jornada_actual, num, local, visitante, division, responsable, quien_doble, 
               pronostico_pena, resultado_tele, pleno_l, pleno_v, pleno_l_real, pleno_v_real))
         
-        # 2. Calculamos aciertos y errores en los primeros 14 partidos
+        # 2. Calculamos aciertos y errores (Partidos 1-14 = 1 punto; Pleno al 15 exacto = 2 puntos)
         if num <= 14 and resultado_tele != "-":
             if quien_doble and signo_del_doble:
                 signo_titular = pronostico_pena.replace(signo_del_doble, "")
@@ -748,7 +748,13 @@ def cerrar_jornada():
                     cursor.execute("UPDATE usuarios SET aciertos = aciertos + 1 WHERE nombre = ?", (responsable,))
                 else:
                     cursor.execute("UPDATE usuarios SET errores = errores + 1 WHERE nombre = ?", (responsable,))
-
+        elif num == 15 and pleno_l_real != "-" and pleno_v_real != "-":
+            # Acertar el marcador exacto del Pleno al 15 suma +2 aciertos
+            if pleno_l == pleno_l_real and pleno_v == pleno_v_real:
+                cursor.execute("UPDATE usuarios SET aciertos = aciertos + 2 WHERE nombre = ?", (responsable,))
+            else:
+                cursor.execute("UPDATE usuarios SET errores = errores + 1 WHERE nombre = ?", (responsable,))
+                
     # 3. Sumamos +1 partido asignado a quienes realmente participaron (21 convocados)
     hay_manuales = any((p[12] or "").strip() != "" for p in partidos)
     if hay_manuales:
