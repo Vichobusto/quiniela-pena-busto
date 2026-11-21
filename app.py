@@ -10,9 +10,10 @@ app.secret_key = "llave_secreta_pena_busto_elite_2026"
 PASSWORD_ADMIN = "Fantasia1183@"
 
 # 🗄️ DIRECCIÓN INTERNA DE TU BASE DE DATOS PERMANENTE EN RENDER
+# 🗄️ DIRECCIÓN DE TU BASE DE DATOS PERMANENTE EN NEON
 DATABASE_URL = os.environ.get(
     "DATABASE_URL",
-    "postgresql://pena_busto_db_user:D2v9bsrxiPdba3PZ6qVvnBwY7fjTiOpr@dpg-dbtnoiifngtc739m8aj0-a/pena_busto_db"
+    "postgresql://neondb_owner:npg_e0j8EXSFGwfT@ep-winter-dream-baefyf0x-pooler.c-8.eu-central-1.aws.neon.tech/neondb?sslmode=require"
 )
 
 
