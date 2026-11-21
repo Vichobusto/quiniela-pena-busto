@@ -9,7 +9,6 @@ app = Flask(__name__)
 app.secret_key = "llave_secreta_pena_busto_elite_2026"
 PASSWORD_ADMIN = "Fantasia1183@"
 
-# 🗄️ DIRECCIÓN INTERNA DE TU BASE DE DATOS PERMANENTE EN RENDER
 # 🗄️ DIRECCIÓN DE TU BASE DE DATOS PERMANENTE EN NEON
 DATABASE_URL = os.environ.get(
     "DATABASE_URL",
@@ -53,7 +52,7 @@ class ConexionPostgresAdaptada:
         self.conn.close()
 
 
-# 🔌 CONEXIÓN AL ARCHIVADOR (PostgreSQL permanente en Render / SQLite local de respaldo)
+# 🔌 CONEXIÓN AL ARCHIVADOR (PostgreSQL permanente en Neon / SQLite local de respaldo)
 def conectar_bd():
     if DATABASE_URL and DATABASE_URL.startswith("postgres"):
         try:
@@ -125,7 +124,7 @@ def verificar_y_actualizar_base_datos():
         if "pronosticador_manual" not in cols:
             cursor.execute("ALTER TABLE partidos ADD COLUMN pronosticador_manual TEXT DEFAULT ''")
         
-    # 3. Tabla de HISTORIAL DE JORNADAS (Con columna signo_doble añadida)
+    # 3. Tabla de HISTORIAL DE JORNADAS
     cursor.execute(f"""
     CREATE TABLE IF NOT EXISTS historial_jornadas (
         id {tipo_id},
@@ -146,7 +145,6 @@ def verificar_y_actualizar_base_datos():
     )
     """)
 
-    # Migración segura: añade signo_doble al historial sin borrar jornadas ya guardadas
     if es_postgres:
         cursor.execute("ALTER TABLE historial_jornadas ADD COLUMN IF NOT EXISTS signo_doble TEXT DEFAULT ''")
     else:
@@ -522,6 +520,25 @@ def admin_panel():
     
     cursor.execute("SELECT id, nombre, aciertos, errores FROM usuarios ORDER BY nombre ASC")
     usuarios = cursor.fetchall()
+
+    # 🔍 CARGAMOS LAS JORNADAS ARCHIVADAS PARA EL REVISOR DE HISTORIAL (VAR)
+    cursor.execute("SELECT DISTINCT jornada FROM historial_jornadas ORDER BY jornada DESC")
+    jornadas_archivadas = [f[0] for f in cursor.fetchall()]
+    
+    jornada_revisar = request.args.get("jornada_revisar", type=int)
+    if not jornada_revisar and jornadas_archivadas:
+        jornada_revisar = jornadas_archivadas[0]
+        
+    partidos_historial = []
+    if jornada_revisar:
+        cursor.execute("""
+            SELECT id, num_partido, local, visitante, pronosticador, doble_por, signo_doble, 
+                   pronostico, resultado_real, pleno_local, pleno_visitante, pleno_local_real, pleno_visitante_real
+            FROM historial_jornadas 
+            WHERE jornada = ? 
+            ORDER BY num_partido ASC
+        """, (jornada_revisar,))
+        partidos_historial = cursor.fetchall()
     
     conexion.close()
     return render_template(
@@ -530,7 +547,10 @@ def admin_panel():
         jornada=jornada, 
         temporada=temporada, 
         usuarios=usuarios, 
-        dobleros_seleccionados=dobleros_seleccionados
+        dobleros_seleccionados=dobleros_seleccionados,
+        jornadas_archivadas=jornadas_archivadas,
+        jornada_revisar=jornada_revisar,
+        partidos_historial=partidos_historial
     )
 
 
@@ -750,7 +770,7 @@ def cerrar_jornada():
         if quien_doble:
             participantes_reales_jornada.add(quien_doble)
         
-        # 1. Guardamos la foto de este partido en el ÁLBUM HISTÓRICO PERMANENTE (con signo_doble incluido)
+        # 1. Guardamos la foto de este partido en el ÁLBUM HISTÓRICO PERMANENTE
         cursor.execute("""
             INSERT INTO historial_jornadas (
                 jornada, num_partido, local, visitante, division, pronosticador, doble_por, signo_doble,
@@ -803,6 +823,99 @@ def cerrar_jornada():
     conexion.commit()
     conexion.close()
     return redirect("/")
+
+
+# 🔄 CORREGIR JORNADA ARCHIVADA Y RECALCULAR TODA LA CLASIFICACIÓN DESDE CERO
+@app.route("/admin/corregir_jornada_archivada", methods=["POST"])
+def corregir_jornada_archivada():
+    if not session.get("es_admin"):
+        return redirect("/admin")
+        
+    jornada_editada = request.form.get("jornada_editada", type=int)
+    conexion = conectar_bd()
+    cursor = conexion.cursor()
+    
+    # 1. Actualizamos los 15 partidos de esa jornada en historial_jornadas
+    for i in range(1, 16):
+        titular = request.form.get(f"hist_titular_{i}", "").strip()
+        doblero = request.form.get(f"hist_doblero_{i}", "").strip()
+        sig_doble = request.form.get(f"hist_sig_doble_{i}", "").strip().upper()
+        
+        if i <= 14:
+            pron = request.form.get(f"hist_pron_{i}", "-").strip().upper() or "-"
+            real = request.form.get(f"hist_real_{i}", "-").strip().upper() or "-"
+            cursor.execute("""
+                UPDATE historial_jornadas 
+                SET pronosticador = ?, doble_por = ?, signo_doble = ?, pronostico = ?, resultado_real = ?
+                WHERE jornada = ? AND num_partido = ?
+            """, (titular, doblero, sig_doble, pron, real, jornada_editada, i))
+        else:
+            pleno_l = request.form.get("hist_pleno_l", "-").strip().upper() or "-"
+            pleno_v = request.form.get("hist_pleno_v", "-").strip().upper() or "-"
+            pleno_lr = request.form.get("hist_pleno_lr", "-").strip().upper() or "-"
+            pleno_vr = request.form.get("hist_pleno_vr", "-").strip().upper() or "-"
+            cursor.execute("""
+                UPDATE historial_jornadas 
+                SET pronosticador = ?, pleno_local = ?, pleno_visitante = ?, pleno_local_real = ?, pleno_visitante_real = ?
+                WHERE jornada = ? AND num_partido = 15
+            """, (titular, pleno_l, pleno_v, pleno_lr, pleno_vr, jornada_editada))
+            
+    # 2. Ponemos a 0 los marcadores de todos los usuarios y recalculamos TODAS las jornadas del historial
+    cursor.execute("UPDATE usuarios SET aciertos = 0, errores = 0, partidos_asignados = 0")
+    
+    cursor.execute("""
+        SELECT jornada, num_partido, pronosticador, doble_por, signo_doble, pronostico, 
+               resultado_real, pleno_local, pleno_visitante, pleno_local_real, pleno_visitante_real
+        FROM historial_jornadas 
+        ORDER BY jornada ASC, num_partido ASC
+    """)
+    todos_hist = cursor.fetchall()
+    
+    participantes_por_jornada = {}
+    
+    for h in todos_hist:
+        jor, num, resp, q_doble, s_doble, pron, real, pl, pv, plr, pvr = h
+        pron = (pron or "-").strip().upper()
+        real = (real or "-").strip().upper()
+        q_doble = (q_doble or "").strip()
+        s_doble = (s_doble or "").strip().upper()
+        
+        participantes_por_jornada.setdefault(jor, set())
+        if resp:
+            participantes_por_jornada[jor].add(resp)
+        if q_doble:
+            participantes_por_jornada[jor].add(q_doble)
+            
+        if num <= 14 and real != "-" and pron != "-":
+            if q_doble and s_doble:
+                sig_titular = pron.replace(s_doble, "")
+                if real == sig_titular:
+                    cursor.execute("UPDATE usuarios SET aciertos = aciertos + 1 WHERE nombre = ?", (resp,))
+                else:
+                    cursor.execute("UPDATE usuarios SET errores = errores + 1 WHERE nombre = ?", (resp,))
+                    
+                if real == s_doble:
+                    cursor.execute("UPDATE usuarios SET aciertos = aciertos + 1 WHERE nombre = ?", (q_doble,))
+                else:
+                    cursor.execute("UPDATE usuarios SET errores = errores + 1 WHERE nombre = ?", (q_doble,))
+            else:
+                if real in pron:
+                    cursor.execute("UPDATE usuarios SET aciertos = aciertos + 1 WHERE nombre = ?", (resp,))
+                else:
+                    cursor.execute("UPDATE usuarios SET errores = errores + 1 WHERE nombre = ?", (resp,))
+        elif num == 15 and plr not in ["", "-"] and pvr not in ["", "-"] and pl not in ["", "-"] and pv not in ["", "-"]:
+            if pl == plr and pv == pvr:
+                cursor.execute("UPDATE usuarios SET aciertos = aciertos + 2 WHERE nombre = ?", (resp,))
+            else:
+                cursor.execute("UPDATE usuarios SET errores = errores + 1 WHERE nombre = ?", (resp,))
+                
+    for jor, lista_part in participantes_por_jornada.items():
+        for nombre_p in lista_part:
+            cursor.execute("UPDATE usuarios SET partidos_asignados = partidos_asignados + 1 WHERE nombre = ?", (nombre_p,))
+            
+    conexion.commit()
+    conexion.close()
+    return redirect(f"/admin?jornada_revisar={jornada_editada}")
 
 
 # ✍️ AJUSTE MANUAL DE CLASIFICACIÓN

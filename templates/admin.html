@@ -205,7 +205,81 @@
                 <button type="submit" class="btn-accion btn-cerrar">🔒 Archivar y Calcular Puntos de la Jornada</button>
             </form>
         </div>
+<!-- 🔍 BLOQUE 3.A: REVISAR Y CORREGIR JORNADAS ARCHIVADAS (VAR) -->
+        <div class="bloque" style="background-color: #e8f5e9; border: 2px solid #43a047;">
+            <h2 style="color: #1b5e20; border-color: #2e7d32;">🔍 3.A REVISAR Y CORREGIR JORNADAS ARCHIVADAS (VAR)</h2>
+            <p style="font-size: 0.9rem; margin-bottom: 15px; color: #2e7d32; font-weight: 600;">
+                ¿Se quedó un Pleno al 15 sin guardar o hubo un error en una jornada ya cerrada? Elige la jornada, corrige el dato y el sistema recalculará automáticamente todo el ranking:
+            </p>
 
+            {% if jornadas_archivadas %}
+            <form action="/admin" method="GET" style="margin-bottom: 18px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                <strong>📂 Seleccionar Jornada Archivada:</strong>
+                <select name="jornada_revisar" onchange="this.form.submit()" style="font-weight: bold; border-color: #2e7d32;">
+                    {% for j in jornadas_archivadas %}
+                        <option value="{{ j }}" {% if j == jornada_revisar %}selected{% endif %}>Jornada Oficial Nº {{ j }}</option>
+                    {% endfor %}
+                </select>
+            </form>
+
+            {% if partidos_historial %}
+            <form action="/admin/corregir_jornada_archivada" method="POST" onsubmit="return confirm('¿Guardar los cambios en la Jornada {{ jornada_revisar }} y recalcular toda la clasificación automáticamente?');">
+                <input type="hidden" name="jornada_editada" value="{{ jornada_revisar }}">
+                
+                {% for ph in partidos_historial %}
+                <div class="fila-partido" style="background: white; padding: 10px; border-radius: 8px; border: 1px solid #c8e6c9;">
+                    <span class="num">{{ ph[1] }}</span>
+                    <span style="min-width: 190px; flex: 1; font-weight: 700; font-size: 0.95rem;">{{ ph[2] }} vs {{ ph[3] }}</span>
+                    
+                    <!-- Titular -->
+                    <select name="hist_titular_{{ ph[1] }}" title="Titular" style="padding: 5px 8px; font-size: 0.9rem; font-weight: bold;">
+                        {% for u in usuarios %}
+                            <option value="{{ u[1] }}" {% if ph[4] == u[1] %}selected{% endif %}>{{ u[1] }}</option>
+                        {% endfor %}
+                    </select>
+
+                    {% if ph[1] <= 14 %}
+                        <!-- Doble y su signo -->
+                        <select name="hist_doblero_{{ ph[1] }}" title="Doblero (opcional)" style="padding: 5px 8px; font-size: 0.85rem;">
+                            <option value="">Sin doble</option>
+                            {% for u in usuarios %}
+                                <option value="{{ u[1] }}" {% if ph[5] == u[1] %}selected{% endif %}>Doble: {{ u[1] }}</option>
+                            {% endfor %}
+                        </select>
+                        <input type="text" name="hist_sig_doble_{{ ph[1] }}" value="{{ ph[6] }}" placeholder="Sig.D" maxlength="1" title="Signo del doble (1, X o 2)" style="width: 48px; min-width: 48px; text-align: center; padding: 5px; text-transform: uppercase;">
+                        
+                        <label style="font-size: 0.8rem; font-weight: bold;">Apuesta:
+                            <input type="text" name="hist_pron_{{ ph[1] }}" value="{{ ph[7] }}" maxlength="2" style="width: 52px; min-width: 52px; text-align: center; padding: 5px; text-transform: uppercase;">
+                        </label>
+                        <label style="font-size: 0.8rem; font-weight: bold; color: #b71c1c;">Real:
+                            <input type="text" name="hist_real_{{ ph[1] }}" value="{{ ph[8] }}" maxlength="1" style="width: 46px; min-width: 46px; text-align: center; padding: 5px; text-transform: uppercase;">
+                        </label>
+                    {% else %}
+                        <!-- Pleno al 15 -->
+                        <label style="font-size: 0.8rem; font-weight: bold;">Apuesta P15:
+                            <input type="text" name="hist_pleno_l" value="{{ ph[9] }}" maxlength="1" style="width: 42px; min-width: 42px; text-align: center; padding: 5px; text-transform: uppercase;">
+                            -
+                            <input type="text" name="hist_pleno_v" value="{{ ph[10] }}" maxlength="1" style="width: 42px; min-width: 42px; text-align: center; padding: 5px; text-transform: uppercase;">
+                        </label>
+                        <label style="font-size: 0.8rem; font-weight: bold; color: #b71c1c;">Real P15:
+                            <input type="text" name="hist_pleno_lr" value="{{ ph[11] }}" maxlength="1" style="width: 42px; min-width: 42px; text-align: center; padding: 5px; text-transform: uppercase;">
+                            -
+                            <input type="text" name="hist_pleno_vr" value="{{ ph[12] }}" maxlength="1" style="width: 42px; min-width: 42px; text-align: center; padding: 5px; text-transform: uppercase;">
+                        </label>
+                    {% endif %}
+                </div>
+                {% endfor %}
+
+                <button type="submit" class="btn-accion" style="background: linear-gradient(135deg, #2e7d32, #1b5e20);">
+                    🔄 Guardar Correcciones de Jornada {{ jornada_revisar }} y Recalcular Clasificación
+                </button>
+            </form>
+            {% endif %}
+            {% else %}
+                <p style="color: #666; font-style: italic;">Todavía no hay jornadas archivadas en el historial.</p>
+            {% endif %}
+        </div>
+        
         <!-- ✍️ BLOQUE 3.B: AJUSTE MANUAL DE CLASIFICACIÓN -->
         <div class="bloque" style="background-color: #e3f2fd; border-color: #64b5f6;">
             <h2 style="color: #1565c0; border-color: #1565c0;">✍️ 3.B AJUSTAR ACIERTOS Y ERRORES MANUALMENTE</h2>
