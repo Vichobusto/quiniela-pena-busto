@@ -945,10 +945,15 @@ def guardar_clasificacion_manual():
     return redirect("/admin")
 
 
-# 🚨 REINICIO MAESTRO DE TEMPORADA
+# 🚨 REINICIO MAESTRO DE TEMPORADA (Protegido con palabra clave REINICIO)
 @app.route("/admin/reiniciar_temporada", methods=["POST"])
 def reiniciar_temporada():
     if not session.get("es_admin"):
+        return redirect("/admin")
+        
+    # Verificamos en el servidor que se haya escrito exactamente REINICIO
+    confirmacion = request.form.get("palabra_confirmacion", "").strip()
+    if confirmacion != "REINICIO":
         return redirect("/admin")
         
     conexion = conectar_bd()

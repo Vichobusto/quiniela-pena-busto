@@ -279,7 +279,7 @@
                 <p style="color: #666; font-style: italic;">Todavía no hay jornadas archivadas en el historial.</p>
             {% endif %}
         </div>
-        
+
         <!-- ✍️ BLOQUE 3.B: AJUSTE MANUAL DE CLASIFICACIÓN -->
         <div class="bloque" style="background-color: #e3f2fd; border-color: #64b5f6;">
             <h2 style="color: #1565c0; border-color: #1565c0;">✍️ 3.B AJUSTAR ACIERTOS Y ERRORES MANUALMENTE</h2>
@@ -310,14 +310,34 @@
             </form>
         </div>
 
-        <!-- 🚨 BLOQUE 4: RESETEO DE TEMPORADA -->
+        <!-- 🚨 BLOQUE 4: RESETEO DE TEMPORADA CON DOBLE SEGURIDAD -->
         <div class="bloque" style="background-color: #ffebee; border-color: #ef9a9a;">
             <h2 style="color: #c62828; border-color: #ef9a9a;">🚨 4. REINICIO MAESTRO DE LA TEMPORADA</h2>
             <p style="font-size: 0.9rem; margin-bottom: 15px; color: #555;">Pone a cero absoluto los marcadores de aciertos, errores, rotación e historial de jornadas para arrancar un nuevo año deportivo.</p>
-            <form action="/admin/reiniciar_temporada" method="POST" onsubmit="return confirm('¿Seguro que quieres reiniciar la clasificación y el historial a 0 para comenzar una temporada nueva?');">
+            
+            <form action="/admin/reiniciar_temporada" method="POST" onsubmit="return confirmarReinicioSeguro(this);">
+                <!-- Campo oculto donde se guardará la palabra clave que escribas -->
+                <input type="hidden" name="palabra_confirmacion" value="">
                 <button type="submit" class="btn-accion btn-peligro">🚨 Resetear Clasificación e Iniciar Nueva Temporada</button>
             </form>
         </div>
+
+        <script>
+            function confirmarReinicioSeguro(formulario) {
+                // 1. Pedimos al usuario que escriba literalmente la palabra REINICIO
+                let texto = prompt("⚠️ ALERTA CRÍTICA: Vas a borrar TODO el historial, ranking y jornadas de la temporada.\n\nSi estás 100% seguro, escribe exactamente la palabra REINICIO en mayúsculas:");
+                
+                // 2. Si cancela o escribe otra cosa, bloqueamos el envío
+                if (texto === null || texto.trim() !== "REINICIO") {
+                    alert("🛡️ Operación cancelada. No se ha borrado ningún dato.");
+                    return false;
+                }
+                
+                // 3. Si escribió REINICIO correctamente, guardamos la palabra y dejamos continuar
+                formulario.palabra_confirmacion.value = texto.trim();
+                return true;
+            }
+        </script>
 
         <div style="display: flex; justify-content: space-between; margin-top: 20px;">
             <a class="volver" href="/">⬅️ Volver a la Portada Pública</a>
